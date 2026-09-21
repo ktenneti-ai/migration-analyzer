@@ -117,6 +117,45 @@ def test_relationship_cardinality_and_flags():
     assert rel.is_active is False
 
 
+def test_teradata_partition_source_is_captured_as_source_hint():
+    # Real shape from a production TMDL export: an "m" partition whose query
+    # names the exact upstream Teradata database/schema/view — not fenced
+    # with ``` (unlike the DAX examples elsewhere in this file), so the
+    # generic tokenizer splits each M step into its own child node.
+    raw = (
+        "createOrReplace\n"
+        "\tmodel Model\n"
+        "\t\ttable RUN_DATES\n"
+        "\t\t\tcolumn LAST_UPDATE_DTTM\n"
+        "\t\t\t\tdataType: dateTime\n"
+        "\n"
+        "\t\t\tpartition RUN_DATES = m\n"
+        "\t\t\t\tmode: import\n"
+        "\t\t\t\tsource =\n"
+        "\t\t\t\t\t\tlet\n"
+        '\t\t\t\t\t\t    Source = Teradata.Database("BNRPROD", [HierarchicalNavigation=true]),\n'
+        '\t\t\t\t\t\t    CP_ED = Source{[Schema="CP_ED"]}[Data],\n'
+        '\t\t\t\t\t\t    V_CPED_RUN_DATES1 = CP_ED{[Name="V_CPED_RUN_DATES"]}[Data]\n'
+        "\t\t\t\t\t\tin\n"
+        "\t\t\t\t\t\t    V_CPED_RUN_DATES1\n"
+    )
+    model = extract_semantic_model_from_tmdl(raw, source_file="x.tmdl", project_id="p1", model_name="X")
+    run_dates = next(t for t in model.tables if t.name == "RUN_DATES")
+    assert run_dates.source_hint == "Teradata: BNRPROD.CP_ED.V_CPED_RUN_DATES"
+
+
+def test_table_without_a_teradata_partition_has_no_source_hint():
+    raw = (
+        "createOrReplace\n"
+        "\tmodel Model\n"
+        "\t\ttable DimCustomer\n"
+        "\t\t\tcolumn CustomerKey\n"
+        "\t\t\t\tdataType: int64\n"
+    )
+    model = extract_semantic_model_from_tmdl(raw, source_file="x.tmdl", project_id="p1", model_name="X")
+    assert model.tables[0].source_hint is None
+
+
 def test_auto_date_table_gets_a_logical_display_name():
     # Power BI's Auto Date/Time feature generates one hidden calendar table
     # per date column, named with a GUID suffix — meaningless in an

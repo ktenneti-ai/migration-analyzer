@@ -4,13 +4,19 @@ input format) — everything downstream (dependency resolution, DAX
 classification, Gold design, SQL translation, Metric View YAML, wrapper
 views) works unchanged regardless of which adapter populated the model.
 
-Only `table`/`column`/`measure`/`relationship` are extracted. `hierarchy`,
-`partition`, `variation`, and `annotation` blocks are recognized by the
-parser but not mapped into the canonical model — none of them have a home
-there yet, and skipping them is not data loss for anything we currently do
-with the model.
+Only `table`/`column`/`measure`/`relationship` are extracted, plus one thing
+out of `partition`: a Teradata source table named via `Teradata.Database(...)
+{[Schema=...]}{[Name=...]}` in the partition's M query (see
+`_extract_teradata_source_hint`) — this is real upstream lineage sitting in
+the file, and pbi-unified's source-table-analysis.md treats `source_hint` as
+"the starting clue for the data source", so leaving it None for every
+TMDL-ingested table was a real gap, not a deliberate scope cut. `hierarchy`
+and `variation` blocks are still recognized by the parser but not mapped —
+neither has a home in the canonical model yet.
 """
 from __future__ import annotations
+
+import re
 
 from app.ingestion.tmdl.parser import (
     collect_properties,
@@ -48,6 +54,46 @@ def _is_auto_date_table(table_node) -> bool:
         if ann_name in _AUTO_DATE_ANNOTATIONS and (ann_value or "").strip().lower() == "true":
             return True
     return False
+
+
+# A table imported from Teradata typically has a partition whose M query
+# looks like:
+#     Source = Teradata.Database("BNRPROD", [HierarchicalNavigation=true]),
+#     CP_ED = Source{[Schema="CP_ED"]}[Data],
+#     V_X = CP_ED{[Name="V_CPED_X"]}[Data]
+# Regex over the M text (consistent with this codebase's DAX handling — no
+# full M parser) rather than trying to interpret the M language generally.
+_TERADATA_DATABASE_RE = re.compile(r'Teradata\.Database\(\s*"([^"]+)"')
+_M_SCHEMA_RE = re.compile(r'Schema\s*=\s*"([^"]+)"')
+_M_TABLE_NAME_RE = re.compile(r'Name\s*=\s*"([^"]+)"')
+
+
+def _extract_teradata_source_hint(table_node) -> str | None:
+    for partition_node in table_node.children:
+        if partition_node.keyword.lower() != "partition":
+            continue
+        source_node = next((c for c in partition_node.children if c.keyword.lower() == "source"), None)
+        if source_node is None:
+            continue
+        # The M query lands either entirely in source_node.rest (when TMDL
+        # fences it with ```) or spread across source_node's children (when
+        # it isn't fenced, so the generic tokenizer split each M step into
+        # its own node) — checking both covers either export shape.
+        blob = " ".join(
+            [source_node.rest] + [f"{c.keyword} {c.rest}" for c in source_node.children]
+        )
+        db_match = _TERADATA_DATABASE_RE.search(blob)
+        if not db_match:
+            continue
+        schema_match = _M_SCHEMA_RE.search(blob)
+        name_match = _M_TABLE_NAME_RE.search(blob)
+        parts = [
+            m.group(1)
+            for m in (db_match, schema_match, name_match)
+            if m is not None
+        ]
+        return "Teradata: " + ".".join(parts)
+    return None
 
 
 def extract_semantic_model_from_tmdl(
@@ -101,8 +147,9 @@ def extract_semantic_model_from_tmdl(
                         provenance=prov(f"{table_locator}.measure[{meas_name}]"),
                     )
                 )
-            # hierarchy / partition / annotation / variation: not part of the
-            # canonical model yet — intentionally skipped.
+            # hierarchy / variation: not part of the canonical model yet —
+            # intentionally skipped. partition is read for its Teradata
+            # source hint (below), otherwise skipped too.
 
         tables.append(
             PowerBITable(
@@ -110,7 +157,7 @@ def extract_semantic_model_from_tmdl(
                 model_id=model_id,
                 name=name,
                 table_type="REGULAR",
-                source_hint=None,
+                source_hint=_extract_teradata_source_hint(table_node),
                 columns=columns,
                 measures=measures,
                 status=Status.CONFIRMED,
