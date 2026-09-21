@@ -73,3 +73,16 @@ def test_unresolved_tables_excludes_teradata_backed_and_system_tables(db_session
     assert rows[0]["columns"] == 1
     assert rows[0]["measures"] == 0
     assert rows[0]["source_file"] == "x.tmdl"
+
+
+def test_dashboard_counts_agree_with_the_teradata_routes(db_session):
+    # Dashboard.tsx and the Teradata Assessment page both surface these
+    # counts — they must come from the same computation or the two pages
+    # could silently disagree.
+    project_id, client = _ingest(db_session)
+    dashboard = client.get(f"/api/projects/{project_id}/dashboard").json()
+    referenced = client.get(f"/api/projects/{project_id}/teradata/referenced-objects").json()
+    unresolved = client.get(f"/api/projects/{project_id}/teradata/unresolved-tables").json()
+
+    assert dashboard["teradata_referenced_objects"] == len(referenced) == 1
+    assert dashboard["teradata_unresolved_objects"] == len(unresolved) == 1

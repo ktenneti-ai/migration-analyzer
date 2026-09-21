@@ -14,7 +14,7 @@ import type { Dashboard as DashboardData, MigrationGap, MigrationPhase } from '.
 import { NoProjectSelected } from './NoProjectSelected'
 
 function computeStages(data: DashboardData): StageInfo[] {
-  const teradataTotal = data.teradata_views + data.teradata_base_tables
+  const teradataTotal = data.teradata_views + data.teradata_base_tables + data.teradata_referenced_objects
   const databricksTotal = data.bronze_tables + data.silver_tables + data.gold_facts + data.gold_dimensions
 
   return [
@@ -68,8 +68,18 @@ function buildFlow(data: DashboardData): FlowStage[] {
     {
       key: 'teradata',
       name: 'Teradata',
-      count: data.teradata_base_tables > 0 ? data.teradata_base_tables : null,
-      note: 'Teradata discovery not completed',
+      count:
+        data.teradata_base_tables > 0
+          ? data.teradata_base_tables
+          : data.teradata_referenced_objects > 0
+            ? data.teradata_referenced_objects
+            : null,
+      note:
+        data.teradata_base_tables > 0
+          ? undefined
+          : data.teradata_referenced_objects > 0
+            ? 'Referenced via Power BI import queries — no Teradata SQL/DDL export ingested yet'
+            : 'Teradata discovery not completed',
     },
     {
       key: 'bronze',
@@ -153,8 +163,8 @@ export function Dashboard() {
         <SectionCard title="Teradata Assessment">
           <MetricRow label="Views" value={data.teradata_views} />
           <MetricRow label="Base Tables" value={data.teradata_base_tables} />
-          <MetricRow label="Referenced Objects" value={<span className="muted">Not yet available</span>} />
-          <MetricRow label="Unresolved Objects" value={<span className="muted">Not yet available</span>} />
+          <MetricRow label="Referenced Objects" value={data.teradata_referenced_objects} />
+          <MetricRow label="Unresolved Objects" value={data.teradata_unresolved_objects} />
         </SectionCard>
 
         <SectionCard title="Databricks Target">

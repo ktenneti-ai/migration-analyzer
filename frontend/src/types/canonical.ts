@@ -93,6 +93,8 @@ export interface Dashboard {
   relationships: number
   teradata_views: number
   teradata_base_tables: number
+  teradata_referenced_objects: number
+  teradata_unresolved_objects: number
   bronze_tables: number
   silver_tables: number
   gold_facts: number
