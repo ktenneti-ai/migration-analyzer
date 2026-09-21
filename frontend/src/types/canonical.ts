@@ -103,7 +103,7 @@ export interface Dashboard {
 
 export interface LineageNode {
   id: string
-  node_type: 'SOURCE' | 'SEMANTIC_MODEL' | 'TABLE' | 'COLUMN' | 'MEASURE'
+  node_type: 'TERADATA_SOURCE' | 'SOURCE' | 'SEMANTIC_MODEL' | 'TABLE' | 'COLUMN' | 'MEASURE'
   ref_id: string
   label: string
   // True for nodes belonging to a Power BI Auto Date/Time table — hidden by

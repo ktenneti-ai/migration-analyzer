@@ -275,7 +275,7 @@ class MigrationGap(BaseModel):
 
 class LineageNode(BaseModel):
     id: str
-    node_type: str  # SOURCE | SEMANTIC_MODEL | TABLE | COLUMN | MEASURE
+    node_type: str  # TERADATA_SOURCE | SOURCE | SEMANTIC_MODEL | TABLE | COLUMN | MEASURE
     ref_id: str
     label: str
     # True for a TABLE/COLUMN/MEASURE node that belongs to one of Power BI's
@@ -296,7 +296,7 @@ class LineageEdge(BaseModel):
     id: str
     source_node_id: str
     target_node_id: str
-    edge_type: str  # SOURCE_TO_MODEL | TABLE_TO_MODEL | MEASURE_TO_MEASURE | MEASURE_TO_COLUMN | MEASURE_TO_TABLE | COLUMN_TO_TABLE | TABLE_TO_TABLE
+    edge_type: str  # TERADATA_TO_TABLE | SOURCE_TO_MODEL | TABLE_TO_MODEL | MEASURE_TO_MEASURE | MEASURE_TO_COLUMN | MEASURE_TO_TABLE | COLUMN_TO_TABLE | TABLE_TO_TABLE
 
 
 class ProjectData(BaseModel):

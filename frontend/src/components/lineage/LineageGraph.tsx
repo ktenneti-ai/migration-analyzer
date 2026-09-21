@@ -10,6 +10,7 @@ import 'reactflow/dist/style.css'
 import type { LineageEdge, LineageGraphData, LineageNode } from '../../types/canonical'
 
 const NODE_TYPE_COLOR: Record<string, string> = {
+  TERADATA_SOURCE: 'var(--node-teradata)',
   SOURCE: 'var(--node-source)',
   SEMANTIC_MODEL: 'var(--node-model)',
   TABLE: 'var(--node-table)',
@@ -17,7 +18,11 @@ const NODE_TYPE_COLOR: Record<string, string> = {
   MEASURE: 'var(--node-measure)',
 }
 
-const NODE_TYPE_ORDER = ['SOURCE', 'SEMANTIC_MODEL', 'TABLE', 'MEASURE', 'COLUMN']
+// TERADATA_SOURCE feeds TABLE directly (not through the ingested file/model
+// chain), so it sits in its own column right before TABLE rather than at
+// the very front — reads as "Teradata origin -> Power BI table", parallel
+// to "ingested file -> semantic model".
+const NODE_TYPE_ORDER = ['SOURCE', 'SEMANTIC_MODEL', 'TERADATA_SOURCE', 'TABLE', 'MEASURE', 'COLUMN']
 const NODE_WIDTH = 220
 const COLUMN_GAP = 300
 

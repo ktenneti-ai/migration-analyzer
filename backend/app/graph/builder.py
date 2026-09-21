@@ -10,8 +10,18 @@ from __future__ import annotations
 
 import networkx as nx
 
+from app.ingestion.tmdl.tmdl_adapter import TERADATA_SOURCE_HINT_PREFIX
 from app.metadata.models import LineageEdge, LineageNode, PowerBISemanticModel
 from app.metadata.store import new_id
+
+
+def _parse_teradata_hint(source_hint: str) -> dict:
+    parts = source_hint[len(TERADATA_SOURCE_HINT_PREFIX) :].split(".")
+    return {
+        "database": parts[0] if len(parts) > 0 else None,
+        "schema": parts[1] if len(parts) > 1 else None,
+        "object": parts[2] if len(parts) > 2 else None,
+    }
 
 
 def build_graph(models: list[PowerBISemanticModel]) -> nx.MultiDiGraph:
@@ -31,6 +41,7 @@ def build_nodes_and_edges(
     edges: list[LineageEdge] = []
 
     source_node_id: dict[str, str] = {}  # keyed by provenance.source_file
+    teradata_node_id: dict[str, str] = {}  # keyed by the parsed Teradata object string
     model_node_id: dict[str, str] = {}
     table_node_id: dict[str, str] = {}  # keyed by (model_id, table_name)
     column_node_id: dict[str, str] = {}  # keyed by "table_name.column_name"
@@ -81,6 +92,28 @@ def build_nodes_and_edges(
             edges.append(
                 LineageEdge(id=new_id(), source_node_id=t_id, target_node_id=m_id, edge_type="TABLE_TO_MODEL")
             )
+
+            # The Teradata Assessment page links this same table to its
+            # upstream Teradata object (via source_hint) — the lineage graph
+            # should show that link too, not just Databricks-facing analysis
+            # pages, or "lineage" would silently disagree with "assessment".
+            if not is_system and table.source_hint and table.source_hint.startswith(TERADATA_SOURCE_HINT_PREFIX):
+                td_id = teradata_node_id.get(table.source_hint)
+                if td_id is None:
+                    td_id = new_id()
+                    teradata_node_id[table.source_hint] = td_id
+                    nodes.append(
+                        LineageNode(
+                            id=td_id,
+                            node_type="TERADATA_SOURCE",
+                            ref_id=table.source_hint,
+                            label=table.source_hint[len(TERADATA_SOURCE_HINT_PREFIX) :],
+                            detail=_parse_teradata_hint(table.source_hint),
+                        )
+                    )
+                edges.append(
+                    LineageEdge(id=new_id(), source_node_id=td_id, target_node_id=t_id, edge_type="TERADATA_TO_TABLE")
+                )
 
             for column in table.columns:
                 c_id = new_id()

@@ -94,3 +94,48 @@ def test_auto_date_table_nodes_are_flagged_system_and_ordinary_nodes_are_not():
 
     date_column_node = next(n for n in nodes if n.node_type == "COLUMN" and n.label.endswith(".Date"))
     assert date_column_node.is_system is True
+
+
+def test_teradata_backed_table_gets_a_teradata_source_node_and_edge():
+    # The Teradata Assessment page links a Power BI table to its upstream
+    # Teradata object via source_hint — the lineage graph must show the same
+    # link, not just the assessment page, or the two would silently disagree.
+    raw = (
+        "createOrReplace\n"
+        "\tmodel Model\n"
+        "\t\ttable RUN_DATES\n"
+        "\t\t\tcolumn LAST_UPDATE_DTTM\n"
+        "\t\t\t\tdataType: dateTime\n"
+        "\n"
+        "\t\t\tpartition RUN_DATES = m\n"
+        "\t\t\t\tmode: import\n"
+        "\t\t\t\tsource =\n"
+        "\t\t\t\t\t\tlet\n"
+        '\t\t\t\t\t\t    Source = Teradata.Database("BNRPROD", [HierarchicalNavigation=true]),\n'
+        '\t\t\t\t\t\t    CP_ED = Source{[Schema="CP_ED"]}[Data],\n'
+        '\t\t\t\t\t\t    V_CPED_RUN_DATES1 = CP_ED{[Name="V_CPED_RUN_DATES"]}[Data]\n'
+        "\t\t\t\t\t\tin\n"
+        "\t\t\t\t\t\t    V_CPED_RUN_DATES1\n"
+        "\n"
+        "\t\ttable DimCustomer\n"
+        "\t\t\tcolumn CustomerKey\n"
+        "\t\t\t\tdataType: int64\n"
+    )
+    model = extract_semantic_model_from_tmdl(raw, source_file="x.tmdl", project_id="p1", model_name="X")
+    nodes, edges = build_nodes_and_edges([model])
+
+    teradata_nodes = [n for n in nodes if n.node_type == "TERADATA_SOURCE"]
+    assert len(teradata_nodes) == 1
+    assert teradata_nodes[0].label == "BNRPROD.CP_ED.V_CPED_RUN_DATES"
+    assert teradata_nodes[0].detail == {"database": "BNRPROD", "schema": "CP_ED", "object": "V_CPED_RUN_DATES"}
+
+    run_dates_node = next(n for n in nodes if n.node_type == "TABLE" and n.label == "RUN_DATES")
+    td_edges = [e for e in edges if e.edge_type == "TERADATA_TO_TABLE"]
+    assert len(td_edges) == 1
+    assert td_edges[0].source_node_id == teradata_nodes[0].id
+    assert td_edges[0].target_node_id == run_dates_node.id
+
+    # DimCustomer has no Teradata-recognized partition -> no Teradata node
+    # or edge attached to it.
+    dim_customer_node = next(n for n in nodes if n.node_type == "TABLE" and n.label == "DimCustomer")
+    assert not any(e.target_node_id == dim_customer_node.id and e.edge_type == "TERADATA_TO_TABLE" for e in edges)

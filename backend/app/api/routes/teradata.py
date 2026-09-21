@@ -15,11 +15,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import db_session
+from app.ingestion.tmdl.tmdl_adapter import TERADATA_SOURCE_HINT_PREFIX
 from app.metadata import store
 
 router = APIRouter(prefix="/api/projects", tags=["teradata"])
-
-_TERADATA_PREFIX = "Teradata: "
 
 
 def _get_data(session: Session, project_id: str):
@@ -37,9 +36,9 @@ def referenced_objects(project_id: str, session: Session = Depends(db_session)):
         for table in model.tables:
             if table.display_name is not None:
                 continue  # Power BI auto-date system table, not a real Teradata object
-            if not table.source_hint or not table.source_hint.startswith(_TERADATA_PREFIX):
+            if not table.source_hint or not table.source_hint.startswith(TERADATA_SOURCE_HINT_PREFIX):
                 continue
-            parts = table.source_hint[len(_TERADATA_PREFIX) :].split(".")
+            parts = table.source_hint[len(TERADATA_SOURCE_HINT_PREFIX) :].split(".")
             out.append(
                 {
                     "model": model.name,

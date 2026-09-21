@@ -63,6 +63,10 @@ def _is_auto_date_table(table_node) -> bool:
 #     V_X = CP_ED{[Name="V_CPED_X"]}[Data]
 # Regex over the M text (consistent with this codebase's DAX handling — no
 # full M parser) rather than trying to interpret the M language generally.
+# Exported so downstream readers of source_hint (the teradata.py API routes,
+# the lineage graph builder) parse it back apart with the same prefix,
+# rather than each re-declaring their own copy of the literal.
+TERADATA_SOURCE_HINT_PREFIX = "Teradata: "
 _TERADATA_DATABASE_RE = re.compile(r'Teradata\.Database\(\s*"([^"]+)"')
 _M_SCHEMA_RE = re.compile(r'Schema\s*=\s*"([^"]+)"')
 _M_TABLE_NAME_RE = re.compile(r'Name\s*=\s*"([^"]+)"')
@@ -92,7 +96,7 @@ def _extract_teradata_source_hint(table_node) -> str | None:
             for m in (db_match, schema_match, name_match)
             if m is not None
         ]
-        return "Teradata: " + ".".join(parts)
+        return TERADATA_SOURCE_HINT_PREFIX + ".".join(parts)
     return None
 
 
