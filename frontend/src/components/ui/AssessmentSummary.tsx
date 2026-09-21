@@ -15,12 +15,14 @@ export function AssessmentSummary({ data }: { data: Dashboard }) {
     <div className="kpi-grid">
       <MetricCard
         icon={<IconPowerBI />}
+        iconColor="var(--node-table)"
         value={powerBiTotal}
         label="Power BI Objects"
         sub={`${data.semantic_models} Model${data.semantic_models === 1 ? '' : 's'} • ${data.tables} Tables • ${data.columns} Columns • ${data.measures} Measures • ${data.relationships} Relationships`}
       />
       <MetricCard
         icon={<IconTeradata />}
+        iconColor="var(--node-teradata)"
         value={teradataTotal}
         label="Teradata Objects"
         sub={
@@ -31,6 +33,7 @@ export function AssessmentSummary({ data }: { data: Dashboard }) {
       />
       <MetricCard
         icon={<IconDatabricks />}
+        iconColor="var(--primary)"
         value={databricksTotal}
         label="Databricks Objects"
         sub={
@@ -41,6 +44,7 @@ export function AssessmentSummary({ data }: { data: Dashboard }) {
       />
       <MetricCard
         icon={<IconGaps />}
+        iconColor="var(--node-column)"
         value={data.migration_gaps}
         label="Migration Gaps"
         sub={data.migration_gaps > 0 ? 'Requires attention' : 'None identified yet'}

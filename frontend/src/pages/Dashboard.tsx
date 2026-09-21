@@ -148,7 +148,7 @@ export function Dashboard() {
 
       <div className="section-label">Source & target systems</div>
       <div className="kpi-grid">
-        <SectionCard title="Power BI Assessment">
+        <SectionCard title="Power BI Assessment" accent="var(--node-table)">
           <MetricRow label="Semantic Models" value={data.semantic_models} />
           <MetricRow label="Tables" value={data.tables} />
           <MetricRow label="Columns" value={data.columns} />
@@ -156,14 +156,14 @@ export function Dashboard() {
           <MetricRow label="Relationships" value={data.relationships} />
         </SectionCard>
 
-        <SectionCard title="Teradata Assessment">
+        <SectionCard title="Teradata Assessment" accent="var(--node-teradata)">
           <MetricRow label="Views" value={data.teradata_views} />
           <MetricRow label="Base Tables" value={data.teradata_base_tables} />
           <MetricRow label="Referenced Objects" value={data.teradata_referenced_objects} />
           <MetricRow label="Unresolved Objects" value={data.teradata_unresolved_objects} />
         </SectionCard>
 
-        <SectionCard title="Databricks Target">
+        <SectionCard title="Databricks Target" accent="var(--primary)">
           <MetricRow label="Bronze Tables" value={data.bronze_tables} />
           <MetricRow label="Silver Tables" value={data.silver_tables} />
           <MetricRow label="Gold Facts" value={data.gold_facts} />
@@ -173,13 +173,13 @@ export function Dashboard() {
 
       <div className="section-label">Migration readiness</div>
       <div className="kpi-grid">
-        <SectionCard title="Overall Readiness">
+        <SectionCard title="Overall Readiness" accent="var(--secondary)">
           <div className="kpi-card__value" style={{ fontSize: 30 }}>
             {readiness}%
           </div>
           <p className="muted">{plan.filter((p) => p.status === 'CONFIRMED').length} of {plan.length} migration phases confirmed</p>
         </SectionCard>
-        <SectionCard title="Migration Gaps">
+        <SectionCard title="Migration Gaps" accent="var(--node-column)">
           <div className="kpi-card__value" style={{ fontSize: 30 }}>
             {data.migration_gaps}
           </div>

@@ -595,6 +595,14 @@ h1 {
   margin-bottom: 16px;
 }
 
+/* Opt-in colored top border (see SectionCard's `accent` prop) — used only
+   where a tile represents one domain (Power BI/Teradata/Databricks/etc.),
+   never applied by default so the rest of the app's SectionCard usages are
+   unaffected. */
+.card--accent {
+  border-top: 3px solid var(--card-accent);
+}
+
 .card h2 {
   font-size: 13.5px;
   font-weight: 600;
@@ -1034,7 +1042,9 @@ tr:last-child td {
 
 .tab-bar a.active {
   color: var(--text);
-  border-bottom-color: var(--primary);
+  /* --tab-accent is set inline per tab (see PowerBITabs.tsx); falls back to
+     the app's primary accent for any tab-bar usage that doesn't set one. */
+  border-bottom-color: var(--tab-accent, var(--primary));
   font-weight: 600;
 }
 
