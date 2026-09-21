@@ -1,0 +1,43 @@
+{
+  "model": {
+    "tables": [
+      {
+        "name": "FactShipments",
+        "tableType": "REGULAR",
+        "source": "Teradata.EDW.VW_SHIPMENTS",
+        "columns": [
+          { "name": "ShipmentKey", "dataType": "int64" },
+          { "name": "WarehouseKey", "dataType": "int64" },
+          { "name": "Units", "dataType": "int64" }
+        ],
+        "measures": [
+          {
+            "name": "Total Units Shipped",
+            "expression": "SUM(FactShipments[Units])"
+          }
+        ]
+      },
+      {
+        "name": "DimWarehouse",
+        "tableType": "REGULAR",
+        "source": "Teradata.EDW.WAREHOUSE",
+        "columns": [
+          { "name": "WarehouseKey", "dataType": "int64" },
+          { "name": "WarehouseName", "dataType": "string" }
+        ],
+        "measures": []
+      }
+    ],
+    "relationships": [
+      {
+        "fromTable": "FactShipments",
+        "fromColumn": "WarehouseKey",
+        "toTable": "DimWarehouse",
+        "toColumn": "WarehouseKey",
+        "cardinality": "MANY_TO_ONE",
+        "crossFilteringBehavior": "SINGLE",
+        "isActive": true
+      }
+    ]
+  }
+}

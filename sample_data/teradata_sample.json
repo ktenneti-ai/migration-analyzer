@@ -1,0 +1,11 @@
+{
+  "platform": "Teradata",
+  "objects": [
+    {
+      "database": "EDW",
+      "name": "VW_CUSTOMER_REVENUE",
+      "type": "VIEW",
+      "sql": "SELECT c.CustomerKey, SUM(t.Revenue) AS Revenue FROM EDW.CUSTOMER c JOIN EDW.TRANSACTION t ON c.CustomerKey = t.CustomerKey GROUP BY 1"
+    }
+  ]
+}

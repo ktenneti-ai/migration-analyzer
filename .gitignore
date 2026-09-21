@@ -1,0 +1,18 @@
+# Python (anywhere in the repo, including pbi-unified/)
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Backend
+backend/.venv/
+backend/*.db
+backend/migration_analyzer.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Editor / OS
+.DS_Store
+.vscode/

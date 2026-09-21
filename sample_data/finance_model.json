@@ -1,0 +1,101 @@
+{
+  "model": {
+    "tables": [
+      {
+        "name": "FactSales",
+        "tableType": "REGULAR",
+        "source": "Teradata.EDW.VW_REVENUE",
+        "columns": [
+          { "name": "CustomerKey", "dataType": "int64" },
+          { "name": "ProductKey", "dataType": "int64" },
+          { "name": "OrderDate", "dataType": "dateTime" },
+          { "name": "Revenue", "dataType": "decimal" },
+          { "name": "Cost", "dataType": "decimal" }
+        ],
+        "measures": [
+          {
+            "name": "Total Revenue",
+            "expression": "SUM(FactSales[Revenue])"
+          },
+          {
+            "name": "Total Cost",
+            "expression": "SUM(FactSales[Cost])"
+          },
+          {
+            "name": "Gross Margin",
+            "expression": "[Total Revenue] - [Total Cost]"
+          },
+          {
+            "name": "Revenue YTD",
+            "expression": "TOTALYTD([Total Revenue], DimDate[Date])"
+          },
+          {
+            "name": "Unresolved Reference Example",
+            "expression": "[Nonexistent Measure] + FactSales[NonexistentColumn]"
+          }
+        ]
+      },
+      {
+        "name": "DimCustomer",
+        "tableType": "REGULAR",
+        "source": "Teradata.EDW.CUSTOMER",
+        "columns": [
+          { "name": "CustomerKey", "dataType": "int64" },
+          { "name": "CustomerName", "dataType": "string" },
+          { "name": "Region", "dataType": "string" }
+        ],
+        "measures": []
+      },
+      {
+        "name": "DimProduct",
+        "tableType": "REGULAR",
+        "source": "Teradata.EDW.PRODUCT",
+        "columns": [
+          { "name": "ProductKey", "dataType": "int64" },
+          { "name": "ProductName", "dataType": "string" },
+          { "name": "Category", "dataType": "string" }
+        ],
+        "measures": []
+      },
+      {
+        "name": "DimDate",
+        "tableType": "REGULAR",
+        "source": null,
+        "columns": [
+          { "name": "Date", "dataType": "dateTime" },
+          { "name": "Year", "dataType": "int64" }
+        ],
+        "measures": []
+      }
+    ],
+    "relationships": [
+      {
+        "fromTable": "FactSales",
+        "fromColumn": "CustomerKey",
+        "toTable": "DimCustomer",
+        "toColumn": "CustomerKey",
+        "cardinality": "MANY_TO_ONE",
+        "crossFilteringBehavior": "SINGLE",
+        "isActive": true
+      },
+      {
+        "fromTable": "FactSales",
+        "fromColumn": "ProductKey",
+        "toTable": "DimProduct",
+        "toColumn": "ProductKey",
+        "cardinality": "MANY_TO_ONE",
+        "crossFilteringBehavior": "SINGLE",
+        "isActive": true
+      },
+      {
+        "fromTable": "FactSales",
+        "fromColumn": "OrderDate",
+        "toTable": "DimDate",
+        "toColumn": "Date",
+        "cardinality": "MANY_TO_ONE",
+        "crossFilteringBehavior": "SINGLE",
+        "isActive": true
+      }
+    ]
+  }
+}
