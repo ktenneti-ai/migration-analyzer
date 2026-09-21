@@ -27,6 +27,18 @@ export default defineConfig({
         }
       : undefined,
   },
+  // `vite preview` (used to serve the app in Codespaces — see start.sh) reads
+  // this block, NOT `server` above; Vite keeps the two configs separate, so
+  // the /api proxy has to be repeated here or the built app loads but every
+  // API call 404s.
+  preview: {
+    host: true,
+    port: 5180,
+    strictPort: true,
+    proxy: {
+      '/api': 'http://localhost:8000',
+    },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
