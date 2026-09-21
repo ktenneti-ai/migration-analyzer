@@ -203,6 +203,9 @@ h1 {
 
 .sidebar {
   width: var(--sidebar-w);
+  height: 100vh;
+  position: sticky;
+  top: 0;
   flex-shrink: 0;
   background: var(--panel);
   border-right: 1px solid var(--rule);
@@ -614,7 +617,8 @@ button:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 10px;
+  gap: 16px;
+  padding: 10px 12px;
   border-left: 2px solid transparent;
 }
 
@@ -623,7 +627,7 @@ button:hover {
   border-left-color: var(--primary);
 }
 
-.project-list button {
+.project-list__name-btn {
   background: none;
   border: none;
   color: var(--text);
@@ -632,14 +636,45 @@ button:hover {
   font-size: 13.5px;
   text-align: left;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
-.project-list li.active button {
+.project-list li.active .project-list__name-btn {
   color: var(--primary);
 }
 
 .project-list .muted {
   font-family: var(--font-mono);
+}
+
+.project-list__meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+  padding-left: 8px;
+}
+
+.project-list__meta .button--sm {
+  padding: 5px 12px;
+}
+
+.pending-project-prompt {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  background: var(--panel-raised);
+}
+
+.pending-project-prompt label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
 }
 
 .upload-dropzone__target {

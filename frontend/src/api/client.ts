@@ -30,6 +30,8 @@ export const api = {
       body: JSON.stringify({ name }),
     }),
   getProject: (id: string) => request<Project>(`/projects/${id}`),
+  deleteProject: (id: string) => request<{ deleted: number }>(`/projects/${id}`, { method: 'DELETE' }),
+  deleteAllProjects: () => request<{ deleted: number }>('/projects', { method: 'DELETE' }),
   getDashboard: (id: string) => request<Dashboard>(`/projects/${id}/dashboard`),
   getTables: (id: string) => request<TableRow[]>(`/projects/${id}/powerbi/tables`),
   getMeasures: (id: string) => request<MeasureRow[]>(`/projects/${id}/powerbi/measures`),

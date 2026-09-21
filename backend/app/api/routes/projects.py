@@ -34,6 +34,19 @@ def get_project(project_id: str, session: Session = Depends(db_session)):
     return data.project.model_dump()
 
 
+@router.delete("")
+def delete_all_projects(session: Session = Depends(db_session)):
+    deleted = store.delete_all_projects(session)
+    return {"deleted": deleted}
+
+
+@router.delete("/{project_id}")
+def delete_project(project_id: str, session: Session = Depends(db_session)):
+    if not store.delete_project(session, project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"deleted": 1}
+
+
 @router.get("/{project_id}/dashboard")
 def dashboard(project_id: str, session: Session = Depends(db_session)):
     data = store.get_project_data(session, project_id)

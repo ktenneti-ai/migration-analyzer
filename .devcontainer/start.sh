@@ -3,8 +3,16 @@
 # background so the forwarded ports are live as soon as the Codespace is ready.
 cd "$(dirname "$0")/.."
 
+export NVM_DIR="${NVM_DIR:-/usr/local/share/nvm}"
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+  # shellcheck disable=SC1091
+  source "$NVM_DIR/nvm.sh"
+fi
+
 LOG_DIR="/tmp/migration-analyzer-logs"
 mkdir -p "$LOG_DIR"
+echo "==> node: $(command -v node || echo NOT FOUND) ($(node --version 2>&1))" > "$LOG_DIR/frontend.log"
+echo "==> npm:  $(command -v npm || echo NOT FOUND) ($(npm --version 2>&1))" >> "$LOG_DIR/frontend.log"
 
 # Kill any servers left over from a previous start (e.g. container restart).
 pkill -f "uvicorn app.main:app" 2>/dev/null || true

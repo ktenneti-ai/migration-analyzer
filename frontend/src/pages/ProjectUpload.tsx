@@ -4,6 +4,12 @@ import { PageHeader } from '../components/layout/PageHeader'
 import { useProject } from '../state/ProjectContext'
 import type { Project } from '../types/canonical'
 
+function defaultProjectNameFromFile(filename: string): string {
+  const base = filename.replace(/\.(json|tmdl)$/i, '')
+  const cleaned = base.replace(/[_-]+/g, ' ').trim()
+  return cleaned || 'New Project'
+}
+
 export function ProjectUpload() {
   const { projectId, setProjectId, refresh: refreshShellData } = useProject()
   const [projects, setProjects] = useState<Project[]>([])
@@ -11,6 +17,8 @@ export function ProjectUpload() {
   const [dragOver, setDragOver] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [pendingFiles, setPendingFiles] = useState<File[] | null>(null)
+  const [pendingName, setPendingName] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
 
   const refreshList = () => api.listProjects().then(setProjects).catch((e) => setError(String(e)))
@@ -27,16 +35,11 @@ export function ProjectUpload() {
     setProjectId(project.id)
   }
 
-  const uploadFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return
-    if (!projectId) {
-      setError('Select or create a project first.')
-      return
-    }
+  const doIngest = async (id: string, files: File[]) => {
     setError(null)
-    for (const file of Array.from(files)) {
+    for (const file of files) {
       try {
-        const result = await api.ingestFile(projectId, file)
+        const result = await api.ingestFile(id, file)
         setStatus(
           `${file.name}: detected ${result.detected_schema}, extracted ${result.tables_extracted} table(s), ${result.measures_extracted} measure(s), ${result.gaps_found} gap(s) found.`,
         )
@@ -46,6 +49,53 @@ export function ProjectUpload() {
     }
     await refreshList()
     refreshShellData() // so the dashboard, header "last analyzed", etc. pick up the new data
+  }
+
+  const uploadFiles = (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return
+    const files = Array.from(fileList)
+    if (!projectId) {
+      // No project selected yet — ask what to call it before ingesting,
+      // instead of just erroring and making the user start over.
+      setPendingFiles(files)
+      setPendingName(defaultProjectNameFromFile(files[0].name))
+      return
+    }
+    doIngest(projectId, files)
+  }
+
+  const confirmPendingUpload = async () => {
+    if (!pendingFiles || !pendingName.trim()) return
+    const project = await api.createProject(pendingName.trim())
+    await refreshList()
+    setProjectId(project.id)
+    const files = pendingFiles
+    setPendingFiles(null)
+    setPendingName('')
+    await doIngest(project.id, files)
+  }
+
+  const cancelPendingUpload = () => {
+    setPendingFiles(null)
+    setPendingName('')
+  }
+
+  const deleteProject = async (p: Project) => {
+    if (!window.confirm(`Delete project "${p.name}" and everything ingested into it? This cannot be undone.`)) {
+      return
+    }
+    await api.deleteProject(p.id)
+    if (projectId === p.id) setProjectId(null)
+    await refreshList()
+  }
+
+  const clearAllProjects = async () => {
+    if (!window.confirm(`Delete all ${projects.length} project(s)? This cannot be undone.`)) {
+      return
+    }
+    await api.deleteAllProjects()
+    setProjectId(null)
+    await refreshList()
   }
 
   const currentProject = projects.find((p) => p.id === projectId) ?? null
@@ -69,15 +119,33 @@ export function ProjectUpload() {
       </section>
 
       <section className="card">
-        <h2>Select a project</h2>
+        <div className="card__header">
+          <h2>Select a project</h2>
+          {projects.length > 0 && (
+            <button className="button--secondary button--sm" onClick={clearAllProjects}>
+              Clear all projects
+            </button>
+          )}
+        </div>
         {projects.length === 0 ? (
-          <p className="empty-state">No projects yet — create one above.</p>
+          <p className="empty-state">No projects yet — create one above, or just drop a file below.</p>
         ) : (
           <ul className="project-list">
             {projects.map((p) => (
               <li key={p.id} className={p.id === projectId ? 'active' : ''}>
-                <button onClick={() => setProjectId(p.id)}>{p.name}</button>
-                <span className="muted">{p.source_artifacts.length} file(s) ingested</span>
+                <button className="project-list__name-btn" onClick={() => setProjectId(p.id)}>
+                  {p.name}
+                </button>
+                <span className="project-list__meta">
+                  <span className="muted">{p.source_artifacts.length} file(s) ingested</span>
+                  <button
+                    className="button--secondary button--sm"
+                    onClick={() => deleteProject(p)}
+                    aria-label={`Delete ${p.name}`}
+                  >
+                    Delete
+                  </button>
+                </span>
               </li>
             ))}
           </ul>
@@ -99,12 +167,36 @@ export function ProjectUpload() {
       >
         <h2>Upload metadata</h2>
         <p className="muted">
-          {currentProject ? `Uploading into "${currentProject.name}".` : 'Select a project above first.'}
+          {currentProject ? `Uploading into "${currentProject.name}".` : "No project selected — you'll be asked to name one."}
           {' '}Milestone 1 supports .json and .tmdl files.
         </p>
-        <div className="upload-dropzone__target" onClick={() => fileInput.current?.click()}>
-          Drag & drop JSON or TMDL files here, or click to browse.
-        </div>
+
+        {pendingFiles ? (
+          <div className="pending-project-prompt">
+            <label htmlFor="pending-project-name">
+              Name this project to ingest {pendingFiles.length === 1 ? pendingFiles[0].name : `${pendingFiles.length} files`}:
+            </label>
+            <div className="form-row">
+              <input
+                id="pending-project-name"
+                type="text"
+                autoFocus
+                value={pendingName}
+                onChange={(e) => setPendingName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && confirmPendingUpload()}
+              />
+              <button onClick={confirmPendingUpload}>Create & Upload</button>
+              <button className="button--secondary" onClick={cancelPendingUpload}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="upload-dropzone__target" onClick={() => fileInput.current?.click()}>
+            Drag & drop JSON or TMDL files here, or click to browse.
+          </div>
+        )}
+
         <input
           ref={fileInput}
           type="file"

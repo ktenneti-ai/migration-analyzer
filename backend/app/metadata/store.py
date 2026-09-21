@@ -33,6 +33,23 @@ def list_projects(session: Session) -> list[Project]:
     return [ProjectData.model_validate_json(r.canonical_json).project for r in records]
 
 
+def delete_project(session: Session, project_id: str) -> bool:
+    """Returns True if a project was deleted, False if it didn't exist."""
+    record = session.get(ProjectRecord, project_id)
+    if record is None:
+        return False
+    session.delete(record)
+    session.commit()
+    return True
+
+
+def delete_all_projects(session: Session) -> int:
+    """Returns the number of projects deleted."""
+    count = session.query(ProjectRecord).delete()
+    session.commit()
+    return count
+
+
 def get_project_data(session: Session, project_id: str) -> ProjectData | None:
     record = session.get(ProjectRecord, project_id)
     if record is None:
