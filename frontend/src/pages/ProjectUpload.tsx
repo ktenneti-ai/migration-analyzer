@@ -100,15 +100,15 @@ export function ProjectUpload() {
         <h2>Upload metadata</h2>
         <p className="muted">
           {currentProject ? `Uploading into "${currentProject.name}".` : 'Select a project above first.'}
-          {' '}Milestone 1 supports .json files only.
+          {' '}Milestone 1 supports .json and .tmdl files.
         </p>
         <div className="upload-dropzone__target" onClick={() => fileInput.current?.click()}>
-          Drag & drop JSON files here, or click to browse.
+          Drag & drop JSON or TMDL files here, or click to browse.
         </div>
         <input
           ref={fileInput}
           type="file"
-          accept=".json"
+          accept=".json,.tmdl"
           multiple
           hidden
           onChange={(e) => uploadFiles(e.target.files)}
