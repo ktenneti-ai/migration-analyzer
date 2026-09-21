@@ -4,6 +4,7 @@ import { PageHeader } from '../components/layout/PageHeader'
 import { PowerBITabs } from '../components/layout/PowerBITabs'
 import { InventoryTable, StatusBadge } from '../components/tables/InventoryTable'
 import { SkeletonStack } from '../components/ui/Skeleton'
+import { TableName } from '../components/ui/TableName'
 import { useProject } from '../state/ProjectContext'
 import type { TableRow } from '../types/canonical'
 import { NoProjectSelected } from './NoProjectSelected'
@@ -35,7 +36,7 @@ export function PowerBIInventory() {
           getRowKey={(r) => r.name}
           columns={[
             { header: 'Object Type', render: (r) => r.object_type },
-            { header: 'Name', render: (r) => r.name },
+            { header: 'Name', render: (r) => <TableName name={r.name} displayName={r.display_name} /> },
             { header: 'Parent', render: (r) => r.parent },
             { header: 'Source', render: (r) => r.source ?? '—' },
             { header: 'Columns', render: (r) => r.columns },

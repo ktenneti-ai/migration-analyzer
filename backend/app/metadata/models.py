@@ -92,6 +92,14 @@ class PowerBITable(_AllowsModelId):
     id: str
     model_id: str
     name: str
+    # Power BI's auto-generated "Local Date Table" / "Date Table Template"
+    # objects get GUID-suffixed names (e.g. LocalDateTable_75add05e-...) that
+    # are meaningless in an inventory UI. When one is detected (TMDL adapter,
+    # via its __PBI_LocalDateTable/__PBI_TemplateDateTable annotation) this
+    # carries a human-readable label derived from the column it was built
+    # for; `name` itself is never changed, since relationships/lineage/SQL
+    # generation all key off the real name.
+    display_name: Optional[str] = None
     table_type: str = "REGULAR"
     source_hint: Optional[str] = None
     columns: list[PowerBIColumn] = Field(default_factory=list)

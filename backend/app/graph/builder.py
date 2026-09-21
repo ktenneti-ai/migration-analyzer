@@ -42,8 +42,9 @@ def build_nodes_and_edges(
 
         for table in model.tables:
             t_id = new_id()
+            table_label = table.display_name or table.name
             table_node_id[f"{model.id}:{table.name}"] = t_id
-            nodes.append(LineageNode(id=t_id, node_type="TABLE", ref_id=table.id, label=table.name))
+            nodes.append(LineageNode(id=t_id, node_type="TABLE", ref_id=table.id, label=table_label))
             edges.append(
                 LineageEdge(id=new_id(), source_node_id=t_id, target_node_id=m_id, edge_type="TABLE_TO_MODEL")
             )
@@ -52,7 +53,7 @@ def build_nodes_and_edges(
                 c_id = new_id()
                 column_node_id[f"{table.name}.{column.name}"] = c_id
                 nodes.append(
-                    LineageNode(id=c_id, node_type="COLUMN", ref_id=column.id, label=f"{table.name}.{column.name}")
+                    LineageNode(id=c_id, node_type="COLUMN", ref_id=column.id, label=f"{table_label}.{column.name}")
                 )
                 edges.append(
                     LineageEdge(id=new_id(), source_node_id=c_id, target_node_id=t_id, edge_type="COLUMN_TO_TABLE")

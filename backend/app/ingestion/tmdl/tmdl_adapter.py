@@ -30,6 +30,25 @@ from app.metadata.models import (
 )
 from app.metadata.store import new_id
 
+# Power BI's "Auto Date/Time" feature generates one hidden calendar table per
+# date/datetime column, named e.g. "LocalDateTable_75add05e-23ff-..." or
+# "DateTableTemplate_d977eeea-...". These GUID-suffixed names are meaningless
+# in an inventory UI. Both variants mark themselves with one of these
+# annotations (per pbi-unified's references/pitfalls.md #8: "columns[].
+# variations[] -> Skip — PBI auto-date hierarchy artifact" — the artifact is
+# this table, reached via a column's `variation` block).
+_AUTO_DATE_ANNOTATIONS = {"__PBI_LocalDateTable", "__PBI_TemplateDateTable"}
+
+
+def _is_auto_date_table(table_node) -> bool:
+    for child in table_node.children:
+        if child.keyword.lower() != "annotation":
+            continue
+        ann_name, ann_value = parse_name_and_expression(child.rest)
+        if ann_name in _AUTO_DATE_ANNOTATIONS and (ann_value or "").strip().lower() == "true":
+            return True
+    return False
+
 
 def extract_semantic_model_from_tmdl(
     raw_text: str, *, source_file: str, project_id: str, model_name: str
@@ -41,11 +60,14 @@ def extract_semantic_model_from_tmdl(
         return Provenance(source_file=source_file, source_type="tmdl", json_path=locator)
 
     tables: list[PowerBITable] = []
+    auto_date_table_names: set[str] = set()
 
     for table_node in find_all(roots, "table"):
         name, _ = parse_name_and_expression(table_node.rest)
         table_id = new_id()
         table_locator = f"table[{name}]:line{table_node.line_no}"
+        if _is_auto_date_table(table_node):
+            auto_date_table_names.add(name)
 
         columns: list[PowerBIColumn] = []
         measures: list[PowerBIMeasure] = []
@@ -125,6 +147,9 @@ def extract_semantic_model_from_tmdl(
             )
         )
 
+    if auto_date_table_names:
+        _assign_auto_date_display_names(tables, relationships, auto_date_table_names)
+
     return PowerBISemanticModel(
         id=model_id,
         project_id=project_id,
@@ -134,3 +159,26 @@ def extract_semantic_model_from_tmdl(
         status=Status.CONFIRMED,
         provenance=prov("model"),
     )
+
+
+def _assign_auto_date_display_names(
+    tables: list[PowerBITable], relationships: list[PowerBIRelationship], auto_date_table_names: set[str]
+) -> None:
+    """An auto-date table exists for exactly one column, discoverable from
+    the relationship that joins it to that column (it's always the "one"
+    side). Falls back to a generic label if no relationship claims it."""
+    tables_by_name = {t.name: t for t in tables}
+    for rel in relationships:
+        if rel.to_table in auto_date_table_names:
+            target = tables_by_name.get(rel.to_table)
+            if target is not None and target.display_name is None:
+                target.display_name = f"Date Table — {rel.from_table}.{rel.from_column}"
+        elif rel.from_table in auto_date_table_names:
+            target = tables_by_name.get(rel.from_table)
+            if target is not None and target.display_name is None:
+                target.display_name = f"Date Table — {rel.to_table}.{rel.to_column}"
+
+    for name in auto_date_table_names:
+        target = tables_by_name.get(name)
+        if target is not None and target.display_name is None:
+            target.display_name = "Date Table (auto-generated)"

@@ -782,6 +782,18 @@ td {
   vertical-align: top;
 }
 
+/* A single unbroken long identifier (a raw TMDL GUID-suffixed table name,
+   for example) must never be allowed to force the whole table — and the
+   page around it — wider than the viewport. */
+.table-name {
+  display: inline-block;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
 tbody tr {
   transition: background var(--motion);
 }

@@ -30,6 +30,10 @@ export interface Project {
 export interface TableRow {
   object_type: string
   name: string
+  // Set only for Power BI's auto-generated date tables (GUID-suffixed
+  // names) — a human-readable label derived from the column they were
+  // built for. `name` is always the real underlying identifier.
+  display_name: string | null
   parent: string
   source: string | null
   columns: number
@@ -57,8 +61,10 @@ export interface MeasureRow {
 
 export interface RelationshipRow {
   from_table: string
+  from_table_display: string | null
   from_column: string
   to_table: string
+  to_table_display: string | null
   to_column: string
   cardinality: string
   cross_filter_direction: string

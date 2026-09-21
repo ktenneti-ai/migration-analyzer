@@ -4,6 +4,7 @@ import { PageHeader } from '../components/layout/PageHeader'
 import { PowerBITabs } from '../components/layout/PowerBITabs'
 import { InventoryTable, StatusBadge } from '../components/tables/InventoryTable'
 import { SkeletonStack } from '../components/ui/Skeleton'
+import { TableName } from '../components/ui/TableName'
 import { useProject } from '../state/ProjectContext'
 import type { RelationshipRow } from '../types/canonical'
 import { NoProjectSelected } from './NoProjectSelected'
@@ -34,9 +35,9 @@ export function RelationshipInventory() {
           emptyMessage="No relationships extracted yet."
           getRowKey={(r, i) => `${r.from_table}.${r.from_column}-${r.to_table}.${r.to_column}-${i}`}
           columns={[
-            { header: 'From Table', render: (r) => r.from_table },
+            { header: 'From Table', render: (r) => <TableName name={r.from_table} displayName={r.from_table_display} /> },
             { header: 'From Column', render: (r) => r.from_column },
-            { header: 'To Table', render: (r) => r.to_table },
+            { header: 'To Table', render: (r) => <TableName name={r.to_table} displayName={r.to_table_display} /> },
             { header: 'To Column', render: (r) => r.to_column },
             { header: 'Cardinality', render: (r) => r.cardinality },
             { header: 'Direction', render: (r) => r.cross_filter_direction },

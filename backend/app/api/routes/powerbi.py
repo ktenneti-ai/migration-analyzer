@@ -26,6 +26,7 @@ def tables(project_id: str, session: Session = Depends(db_session)):
                 {
                     "object_type": "TABLE",
                     "name": table.name,
+                    "display_name": table.display_name,
                     "parent": model.name,
                     "source": table.source_hint,
                     "columns": len(table.columns),
@@ -68,12 +69,15 @@ def relationships(project_id: str, session: Session = Depends(db_session)):
     data = _get_data(session, project_id)
     out = []
     for model in data.semantic_models:
+        display_by_name = {t.name: t.display_name for t in model.tables if t.display_name}
         for rel in model.relationships:
             out.append(
                 {
                     "from_table": rel.from_table,
+                    "from_table_display": display_by_name.get(rel.from_table),
                     "from_column": rel.from_column,
                     "to_table": rel.to_table,
+                    "to_table_display": display_by_name.get(rel.to_table),
                     "to_column": rel.to_column,
                     "cardinality": rel.cardinality,
                     "cross_filter_direction": rel.cross_filter_direction,

@@ -117,6 +117,53 @@ def test_relationship_cardinality_and_flags():
     assert rel.is_active is False
 
 
+def test_auto_date_table_gets_a_logical_display_name():
+    # Power BI's Auto Date/Time feature generates one hidden calendar table
+    # per date column, named with a GUID suffix — meaningless in an
+    # inventory UI. The table should get a derived display_name from the
+    # column it was built for, without changing its real `name` (which
+    # relationships/joins/SQL generation key off).
+    raw = (
+        "createOrReplace\n"
+        "\tmodel Model\n"
+        "\t\ttable RUN_DATES\n"
+        "\t\t\tcolumn LAST_UPDATE_DTTM\n"
+        "\t\t\t\tdataType: dateTime\n"
+        "\n"
+        "\t\ttable LocalDateTable_75add05e-23ff-4231-8e2a-ecf332e78bf4\n"
+        "\t\t\tisHidden\n"
+        "\t\t\tcolumn Date\n"
+        "\t\t\t\tdataType: dateTime\n"
+        "\t\t\tannotation __PBI_LocalDateTable = true\n"
+        "\n"
+        "\t\trelationship r1\n"
+        "\t\t\tfromColumn: RUN_DATES.LAST_UPDATE_DTTM\n"
+        "\t\t\ttoColumn: LocalDateTable_75add05e-23ff-4231-8e2a-ecf332e78bf4.Date\n"
+    )
+    model = extract_semantic_model_from_tmdl(raw, source_file="x.tmdl", project_id="p1", model_name="X")
+
+    run_dates = next(t for t in model.tables if t.name == "RUN_DATES")
+    assert run_dates.display_name is None  # ordinary table — untouched
+
+    date_table = next(t for t in model.tables if t.name.startswith("LocalDateTable_"))
+    assert date_table.display_name == "Date Table — RUN_DATES.LAST_UPDATE_DTTM"
+    # The real name is preserved — relationships still reference it exactly.
+    assert model.relationships[0].to_table == date_table.name
+
+
+def test_auto_date_table_without_a_relationship_gets_a_generic_label():
+    raw = (
+        "createOrReplace\n"
+        "\tmodel Model\n"
+        "\t\ttable DateTableTemplate_abc\n"
+        "\t\t\tcolumn Date\n"
+        "\t\t\t\tdataType: dateTime\n"
+        "\t\t\tannotation __PBI_TemplateDateTable = true\n"
+    )
+    model = extract_semantic_model_from_tmdl(raw, source_file="x.tmdl", project_id="p1", model_name="X")
+    assert model.tables[0].display_name == "Date Table (auto-generated)"
+
+
 def test_ingest_tmdl_file_end_to_end(db_session, sample_data_dir):
     from fastapi.testclient import TestClient
 
