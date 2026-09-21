@@ -8,7 +8,7 @@ from app.metadata.models import (
     PowerBITable,
     Provenance,
 )
-from app.parsers.dax.classifier import classify_measures, complexity_bucket
+from app.parsers.dax.classifier import classify_measures, complexity_bucket, detect_relationship_model_gaps
 from app.parsers.dax.dependency_parser import resolve_dependencies
 
 
@@ -145,6 +145,57 @@ def test_bidirectional_relationship_caps_score():
     )
     result = _classify({"Fact": [("Total", "SUM(Fact[Value])")]}, relationships=[rel])
     assert result["Total"].complexity_score <= 45
+
+
+def test_bidirectional_relationship_is_surfaced_as_a_migration_gap():
+    rel = PowerBIRelationship(
+        id="r1",
+        model_id="m1",
+        from_table="Fact",
+        from_column="DimKey",
+        to_table="Dim",
+        to_column="DimKey",
+        cross_filter_direction="BOTH",
+        provenance=_prov(),
+    )
+    model = _model({"Fact": [("Total", "SUM(Fact[Value])")]}, relationships=[rel])
+    gaps = detect_relationship_model_gaps(model)
+    assert len(gaps) == 1
+    assert gaps[0].object_ref == "Relationship:Fact <-> Dim"
+    assert "Bi-directional" in gaps[0].missing_information
+    assert "bridge table" not in gaps[0].recommended_action  # that's the M:M recommendation, not bi-di's
+
+
+def test_many_to_many_relationship_is_surfaced_as_a_migration_gap():
+    rel = PowerBIRelationship(
+        id="r1",
+        model_id="m1",
+        from_table="Fact",
+        from_column="DimKey",
+        to_table="Dim",
+        to_column="DimKey",
+        cardinality="MANY_TO_MANY",
+        provenance=_prov(),
+    )
+    model = _model({"Fact": [("Total", "SUM(Fact[Value])")]}, relationships=[rel])
+    gaps = detect_relationship_model_gaps(model)
+    assert len(gaps) == 1
+    assert "Many-to-many" in gaps[0].missing_information
+    assert "bridge table" in gaps[0].recommended_action
+
+
+def test_ordinary_relationship_produces_no_gap():
+    rel = PowerBIRelationship(
+        id="r1",
+        model_id="m1",
+        from_table="Fact",
+        from_column="DimKey",
+        to_table="Dim",
+        to_column="DimKey",
+        provenance=_prov(),
+    )
+    model = _model({"Fact": [("Total", "SUM(Fact[Value])")]}, relationships=[rel])
+    assert detect_relationship_model_gaps(model) == []
 
 
 def test_dashboard_complexity_reflects_real_classification(sample_data_dir):

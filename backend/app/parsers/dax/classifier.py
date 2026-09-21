@@ -27,7 +27,8 @@ from __future__ import annotations
 
 import re
 
-from app.metadata.models import PowerBIMeasure, PowerBISemanticModel
+from app.metadata.models import MigrationGap, PowerBIMeasure, PowerBISemanticModel
+from app.metadata.store import new_id
 
 # --- Function-name sets (verbatim from pbi-unified/scripts/classify_score.py) ---
 
@@ -347,3 +348,73 @@ def classify_measures(model: PowerBISemanticModel) -> None:
             measure.complexity_band = "MANUAL_PORT"
             measure.complexity_category = "F"
             measure.complexity_reasons = measure.complexity_reasons + ["dependency cycle"]
+
+
+def detect_relationship_model_gaps(model: PowerBISemanticModel) -> list[MigrationGap]:
+    """Surfaces the HIGH-severity relationship features from pbi-unified's
+    model-coverage.md as explicit MigrationGaps, one per affected table
+    pair. Without this, a many-to-many or bi-directional relationship is
+    only visible indirectly, as a capped measure score with a one-line
+    reason (see classify_measures) — nothing tells the user a bridge-table
+    or filter-path *design decision* is required before migration, which
+    model-coverage.md's G5 gate calls for explicitly."""
+    gaps: list[MigrationGap] = []
+    seen: set[tuple[str, str, str]] = set()
+    for rel in model.relationships:
+        direction = (rel.cross_filter_direction or "").upper()
+        cardinality = (rel.cardinality or "").upper()
+        pair = tuple(sorted((rel.from_table, rel.to_table)))
+        object_ref = f"Relationship:{rel.from_table} <-> {rel.to_table}"
+
+        if "MANY_TO_MANY" in cardinality or "M2M" in cardinality:
+            key = ("m2m", *pair)
+            if key not in seen:
+                seen.add(key)
+                gaps.append(
+                    MigrationGap(
+                        id=new_id(),
+                        object_ref=object_ref,
+                        missing_information=(
+                            f"Many-to-many relationship between '{rel.from_table}' and '{rel.to_table}'."
+                        ),
+                        why_it_matters=(
+                            "Requires bridge-table design — fanout risk is even higher than a "
+                            "bi-directional relationship (pbi-unified model-coverage.md)."
+                        ),
+                        migration_impact=(
+                            "Measures touching this relationship path are capped at complexity "
+                            "score 45 and routed to manual review."
+                        ),
+                        recommended_action=(
+                            "Design a bridge table or dedicated aggregation views before migrating "
+                            "affected measures."
+                        ),
+                    )
+                )
+
+        if "BOTH" in direction or "BIDIRECTIONAL" in direction:
+            key = ("bidi", *pair)
+            if key not in seen:
+                seen.add(key)
+                gaps.append(
+                    MigrationGap(
+                        id=new_id(),
+                        object_ref=object_ref,
+                        missing_information=(
+                            f"Bi-directional relationship between '{rel.from_table}' and '{rel.to_table}'."
+                        ),
+                        why_it_matters=(
+                            "Filter path ambiguity — dimension-side join keys must be "
+                            "uniqueness-checked or fanout silently inflates measures "
+                            "(pbi-unified model-coverage.md)."
+                        ),
+                        migration_impact=(
+                            "Measures touching this relationship path are capped at complexity "
+                            "score 45 and routed to manual review."
+                        ),
+                        recommended_action=(
+                            "Redesign filter paths; consider a separate view per filter direction."
+                        ),
+                    )
+                )
+    return gaps

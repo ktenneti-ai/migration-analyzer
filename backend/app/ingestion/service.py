@@ -16,7 +16,7 @@ from app.ingestion.json.powerbi_json_adapter import extract_semantic_model
 from app.ingestion.tmdl.tmdl_adapter import extract_semantic_model_from_tmdl
 from app.metadata import store
 from app.metadata.models import PowerBISemanticModel, SourceArtifact
-from app.parsers.dax.classifier import classify_measures
+from app.parsers.dax.classifier import classify_measures, detect_relationship_model_gaps
 from app.parsers.dax.dependency_parser import resolve_dependencies
 
 _FILE_TYPE_BY_SCHEMA = {DetectedSchema.TMDL: "tmdl"}
@@ -63,6 +63,7 @@ def ingest_json_file(session: Session, project_id: str, filename: str, raw_text:
     if semantic_model is not None:
         new_gaps = resolve_dependencies(semantic_model)
         classify_measures(semantic_model)
+        new_gaps = new_gaps + detect_relationship_model_gaps(semantic_model)
         data.semantic_models.append(semantic_model)
 
     data.gaps.extend(new_gaps)

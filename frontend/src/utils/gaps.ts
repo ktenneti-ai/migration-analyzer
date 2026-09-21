@@ -6,6 +6,7 @@ import type { MigrationGap } from '../types/canonical'
 // stable format rather than inventing a field the API doesn't provide.
 const KIND_TO_SOURCE: Record<string, string> = {
   Measure: 'Power BI',
+  Relationship: 'Power BI',
 }
 
 export function gapSource(gap: MigrationGap): string {

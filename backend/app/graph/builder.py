@@ -125,6 +125,10 @@ def build_nodes_and_edges(
                             "dependency_depth": measure.dependency_depth,
                             "complexity_band": measure.complexity_band,
                             "complexity_category": measure.complexity_category,
+                            # Includes "dependency cycle" when classify_measures()
+                            # detected a circular measure reference (pbi-unified
+                            # pitfall #12) — otherwise invisible in this panel.
+                            "complexity_reasons": measure.complexity_reasons,
                             "status": measure.status,
                         },
                     )
