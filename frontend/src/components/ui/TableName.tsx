@@ -1,24 +1,18 @@
-import { Tooltip } from './Tooltip'
-
 /**
  * Renders a table's display_name when one exists (Power BI's auto-generated
  * date tables get GUID-suffixed real names — see backend/app/ingestion/tmdl/
- * tmdl_adapter.py), with the real name available on hover so it's never
- * hidden, just not the primary label. Falls back to the real name (with a
- * native title tooltip, in case it's unusually long) when there's no
- * friendlier name to show.
+ * tmdl_adapter.py), with the real name printed underneath in smaller, dimmer
+ * text so it's always visible rather than hidden behind a hover. Falls back
+ * to just the real name when there's no friendlier name to show.
  */
 export function TableName({ name, displayName }: { name: string; displayName: string | null }) {
   if (displayName) {
     return (
-      <Tooltip label={`Real name: ${name}`}>
-        <span className="table-name">{displayName}</span>
-      </Tooltip>
+      <span className="table-name">
+        <span className="table-name__display">{displayName}</span>
+        <span className="table-name__real">{name}</span>
+      </span>
     )
   }
-  return (
-    <span className="table-name" title={name}>
-      {name}
-    </span>
-  )
+  return <span className="table-name">{name}</span>
 }

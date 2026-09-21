@@ -796,6 +796,21 @@ td {
   vertical-align: bottom;
 }
 
+.table-name__display {
+  display: block;
+  color: var(--text);
+}
+
+/* The real, GUID-suffixed name — always visible under the friendly label
+   instead of hidden behind a hover, per the user's request. */
+.table-name__real {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+}
+
 tbody tr {
   transition: background var(--motion);
 }
