@@ -2,6 +2,14 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
+// GitHub Codespaces forwards the dev server over HTTPS on port 443, but the
+// server itself listens on 5180 — without telling Vite's HMR client to
+// connect back through the forwarded host/443 instead of localhost:5180, the
+// WebSocket handshake fails, which can leave the page blank (works fine
+// locally, where localhost:5180 is directly reachable).
+const codespaceName = process.env.CODESPACE_NAME
+const forwardingDomain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN ?? 'app.github.dev'
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -11,6 +19,13 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:8000',
     },
+    hmr: codespaceName
+      ? {
+          host: `${codespaceName}-5180.${forwardingDomain}`,
+          protocol: 'wss',
+          clientPort: 443,
+        }
+      : undefined,
   },
   test: {
     environment: 'jsdom',
