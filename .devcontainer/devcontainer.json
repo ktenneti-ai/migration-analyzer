@@ -12,7 +12,7 @@
     },
     "5180": {
       "label": "Migration Analyzer",
-      "onAutoForward": "openPreview"
+      "onAutoForward": "notify"
     }
   },
   "postCreateCommand": "bash .devcontainer/setup.sh",
