@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 
 from app.api.routes import (
     ingestion,
@@ -56,3 +58,18 @@ app.include_router(teradata.router)
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+# TEMPORARY — Codespaces diagnostic only. See .devcontainer/start.sh.
+_DEBUG_LOG_FILES = {"frontend", "backend", "start"}
+
+
+@app.get("/api/_debug/log/{name}", response_class=PlainTextResponse)
+def _debug_log(name: str):
+    if name not in _DEBUG_LOG_FILES:
+        return f"unknown log {name!r}; choose one of {sorted(_DEBUG_LOG_FILES)}"
+    path = f"/tmp/migration-analyzer-logs/{name}.log"
+    if not os.path.exists(path):
+        return f"{path} does not exist"
+    with open(path) as f:
+        return f.read()
