@@ -32,7 +32,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5180"],
+    # The frontend normally reaches the API through Vite's same-origin /api
+    # proxy, so this regex is a defensive fallback for GitHub Codespaces'
+    # forwarded *.app.github.dev / *.githubpreview.dev port URLs.
+    allow_origin_regex=r"https://.*\.(app\.github\.dev|githubpreview\.dev)",
     allow_methods=["*"],
     allow_headers=["*"],
 )

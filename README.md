@@ -4,7 +4,24 @@ Reverse-engineers Power BI + Teradata architectures and generates a migration
 blueprint for moving the workload to Databricks. See the full application
 scope and long-term design in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
-This repository currently implements **Milestone 1**.
+This repository currently implements **Milestone 1**, plus a recommendation
+engine (DAX classification, Gold fact/dimension inference, SQL translation,
+Metric View YAML, and wrapper-view generation) adapted from the
+`pbi-unified` skill — see [`pbi-unified/`](pbi-unified/) for the source
+material and `backend/app/recommendations/` + `backend/app/parsers/dax/` for
+the ported logic.
+
+## Run it in GitHub Codespaces (no local install)
+
+Click **Code → Codespaces → Create codespace on main** on this repo. The
+codespace installs both the backend and frontend automatically and starts
+both dev servers; a preview of the app opens on its own once the frontend
+port comes up (usually well under a minute). If it doesn't, open the
+**Ports** tab and click the forwarded **5180 / Migration Analyzer** link.
+
+If either server needs a restart (e.g. after `pip install`-ing something new),
+re-run `bash .devcontainer/start.sh` in a terminal — it kills and relaunches
+both. Logs are at `/tmp/migration-analyzer-logs/{backend,frontend}.log`.
 
 ## What Milestone 1 does
 
@@ -45,12 +62,12 @@ This repository currently implements **Milestone 1**.
 
 ## What's deliberately deferred to later milestones
 
-PBIX/PBIT/PBIP/TMDL/SQL/CSV/Excel ingestion, Teradata and Databricks
-extraction, a real DAX/M/SQL AST, Bronze/Silver/Gold design recommendations,
-actual SQL conversion, complexity classification, the validation framework,
-and CSV/Excel export. The package layout already reserves a place for each
-of these (see the `README.md` stub in each empty package under
-`backend/app/`).
+PBIX/PBIT/PBIP/TMDL/SQL/CSV/Excel ingestion, Teradata extraction, a real
+DAX/M/SQL AST (the classifier/translator are regex-based, not a full
+parser), the validation framework, and CSV/Excel export. Bridge tables,
+aggregates, and confirmed fact grain also need Teradata source data the app
+doesn't have yet. The package layout reserves a place for each of these
+(see the `README.md` stub in each still-empty package under `backend/app/`).
 
 ## Running it
 

@@ -5,6 +5,7 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: true, // bind 0.0.0.0 so GitHub Codespaces port forwarding can reach it
     port: 5180,
     strictPort: true,
     proxy: {
