@@ -17,6 +17,8 @@ const NODE_TYPE_COLOR: Record<string, string> = {
 }
 
 const NODE_TYPE_ORDER = ['SEMANTIC_MODEL', 'TABLE', 'MEASURE', 'COLUMN']
+const NODE_WIDTH = 220
+const COLUMN_GAP = 300
 
 function layout(nodes: LineageNode[]): Node[] {
   const byType = new Map<string, LineageNode[]>()
@@ -32,9 +34,13 @@ function layout(nodes: LineageNode[]): Node[] {
     items.forEach((n, row) => {
       result.push({
         id: n.id,
-        position: { x: col * 260, y: row * 70 },
+        position: { x: col * COLUMN_GAP, y: row * 60 },
         data: { label: n.label, nodeType: n.node_type },
+        // A fixed width with wrapping (rather than letting the label size the
+        // box) keeps long real table names and derived date-table labels
+        // from spilling into the next column and overlapping other nodes.
         style: {
+          width: NODE_WIDTH,
           borderColor: NODE_TYPE_COLOR[n.node_type] ?? 'var(--rule)',
           borderWidth: 1.5,
           borderStyle: 'solid',
@@ -44,6 +50,9 @@ function layout(nodes: LineageNode[]): Node[] {
           fontFamily: 'var(--font-mono)',
           background: 'var(--panel)',
           color: 'var(--text)',
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+          textAlign: 'left' as const,
         },
       })
     })
@@ -76,7 +85,11 @@ export function LineageGraph({ data }: { data: LineageGraphData }) {
         id: e.id,
         source: e.source_node_id,
         target: e.target_node_id,
-        label: e.edge_type,
+        // Containment/relationship edges are obvious from the node colors and
+        // arrow direction alone — labeling every one of them just repeats
+        // "TABLE_TO_TABLE" across the canvas. Only the measure-dependency
+        // edges carry information a table-relationship diagram doesn't.
+        label: e.edge_type.startsWith('MEASURE') ? e.edge_type : undefined,
         animated: e.edge_type.startsWith('MEASURE'),
         style: { opacity: filteredNodeIds ? 0.3 : 0.6 },
       })),
