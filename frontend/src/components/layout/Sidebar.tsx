@@ -22,6 +22,15 @@ interface NavItem {
   label: string
   icon: (props: { width?: number; height?: number }) => ReactElement
   end?: boolean
+  // Fixed per-item accent for the icon only (never the label) — reuses the
+  // same palette already assigned to lineage-graph node types where the
+  // subject matches (Power BI -> table blue, Teradata -> its lineage-node
+  // orange, Lineage itself -> model purple), so the color means the same
+  // thing wherever it appears in the app. Deliberately never
+  // success/warning/danger — those are reserved for the CONFIRMED/INFERRED/
+  // REQUIRES_INPUT status grammar, and reusing them here would make a plain
+  // nav icon look like a status indicator.
+  color: string
 }
 
 interface NavGroup {
@@ -33,38 +42,38 @@ const GROUPS: NavGroup[] = [
   {
     label: 'Overview',
     items: [
-      { to: '/', label: 'Dashboard', icon: IconDashboard, end: true },
-      { to: '/upload', label: 'Projects', icon: IconProjects },
+      { to: '/', label: 'Dashboard', icon: IconDashboard, end: true, color: 'var(--secondary)' },
+      { to: '/upload', label: 'Projects', icon: IconProjects, color: 'var(--node-source)' },
     ],
   },
   {
     label: 'Assessment',
     items: [
-      { to: '/powerbi/tables', label: 'Power BI', icon: IconPowerBI },
-      { to: '/teradata', label: 'Teradata', icon: IconTeradata },
-      { to: '/lineage', label: 'Lineage', icon: IconLineage },
-      { to: '/gaps', label: 'Gaps', icon: IconGaps },
+      { to: '/powerbi/tables', label: 'Power BI', icon: IconPowerBI, color: 'var(--node-table)' },
+      { to: '/teradata', label: 'Teradata', icon: IconTeradata, color: 'var(--node-teradata)' },
+      { to: '/lineage', label: 'Lineage', icon: IconLineage, color: 'var(--node-model)' },
+      { to: '/gaps', label: 'Gaps', icon: IconGaps, color: 'var(--node-column)' },
     ],
   },
   {
     label: 'Migration',
     items: [
-      { to: '/databricks', label: 'Databricks', icon: IconDatabricks },
-      { to: '/sql-conversion', label: 'SQL Conversion', icon: IconSql },
-      { to: '/migration-plan', label: 'Migration Plan', icon: IconPlan },
-      { to: '/validation', label: 'Validation', icon: IconValidation },
+      { to: '/databricks', label: 'Databricks', icon: IconDatabricks, color: 'var(--primary)' },
+      { to: '/sql-conversion', label: 'SQL Conversion', icon: IconSql, color: 'var(--node-measure)' },
+      { to: '/migration-plan', label: 'Migration Plan', icon: IconPlan, color: 'var(--secondary)' },
+      { to: '/validation', label: 'Validation', icon: IconValidation, color: 'var(--node-column)' },
     ],
   },
   {
     label: 'Output',
     items: [
-      { to: '/report', label: 'Assessment Report', icon: IconReport },
-      { to: '/exports', label: 'Exports', icon: IconExports },
+      { to: '/report', label: 'Assessment Report', icon: IconReport, color: 'var(--node-source)' },
+      { to: '/exports', label: 'Exports', icon: IconExports, color: 'var(--node-measure)' },
     ],
   },
   {
     label: 'System',
-    items: [{ to: '/settings', label: 'Settings', icon: IconSettings }],
+    items: [{ to: '/settings', label: 'Settings', icon: IconSettings, color: 'var(--text-dim)' }],
   },
 ]
 
@@ -122,7 +131,9 @@ export function Sidebar() {
                     className={({ isActive }) => `sidebar__link ${isActive ? 'active' : ''}`}
                     title={collapsed ? item.label : undefined}
                   >
-                    <item.icon />
+                    <span className="sidebar__icon" style={{ color: item.color }}>
+                      <item.icon />
+                    </span>
                     {!collapsed && item.label}
                   </NavLink>
                 </li>

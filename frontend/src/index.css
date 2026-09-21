@@ -310,9 +310,26 @@ h1 {
   flex-shrink: 0;
 }
 
+/* The icon's color is fixed per nav item (set inline, via item.color) and
+   intentionally independent of the link's own text color — text still goes
+   through the normal dim/hover/active states below, so "current page" is
+   still readable at a glance, while the icon's identity color never
+   changes. Only its opacity lifts on hover/active, so it still visibly
+   responds without shifting hue. */
+.sidebar__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  opacity: 0.75;
+  transition: opacity var(--motion);
+}
+
 .sidebar__link:hover {
   color: var(--text);
   background: var(--panel-raised);
+}
+
+.sidebar__link:hover .sidebar__icon {
+  opacity: 1;
 }
 
 .sidebar__link.active {
@@ -320,6 +337,10 @@ h1 {
   border-left-color: var(--primary);
   background: var(--panel-raised);
   font-weight: 600;
+}
+
+.sidebar__link.active .sidebar__icon {
+  opacity: 1;
 }
 
 .sidebar__link--disabled {
