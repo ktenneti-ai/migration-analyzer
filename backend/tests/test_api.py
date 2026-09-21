@@ -80,6 +80,32 @@ def test_ingest_unknown_project_returns_400(db_session, sample_data_dir):
     assert resp.status_code == 400
 
 
+def test_json_with_utf8_bom_is_accepted(db_session, sample_data_dir):
+    # PowerShell/Tabular Editor exports on Windows commonly prepend a UTF-8
+    # BOM; a naive .decode("utf-8") leaves ﻿ at position 0 and json.loads
+    # fails with "Expecting value: line 1 column 1 (char 0)".
+    project_id = client.post("/api/projects", json={"name": "BOM Test"}).json()["id"]
+    path = os.path.join(sample_data_dir, "finance_model.json")
+    with open(path, "rb") as f:
+        content = b"\xef\xbb\xbf" + f.read()
+    resp = client.post(
+        f"/api/projects/{project_id}/ingest",
+        files={"file": ("finance_model.json", content, "application/json")},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["tables_extracted"] == 4
+
+
+def test_non_utf8_file_gives_a_clear_error(db_session, sample_data_dir):
+    project_id = client.post("/api/projects", json={"name": "Bad Encoding"}).json()["id"]
+    resp = client.post(
+        f"/api/projects/{project_id}/ingest",
+        files={"file": ("model.json", b"\xff\xfe\x00\x01binary garbage", "application/json")},
+    )
+    assert resp.status_code == 400
+    assert "UTF-8" in resp.json()["detail"]
+
+
 def test_teradata_json_is_accepted_but_not_extracted(db_session, sample_data_dir):
     create_resp = client.post("/api/projects", json={"name": "Teradata Only"})
     project_id = create_resp.json()["id"]
