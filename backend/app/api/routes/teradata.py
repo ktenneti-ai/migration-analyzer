@@ -42,10 +42,14 @@ def referenced_objects(project_id: str, session: Session = Depends(db_session)):
             parts = table.source_hint[len(_TERADATA_PREFIX) :].split(".")
             out.append(
                 {
+                    "model": model.name,
                     "power_bi_table": table.name,
                     "teradata_database": parts[0] if len(parts) > 0 else None,
                     "teradata_schema": parts[1] if len(parts) > 1 else None,
                     "teradata_object": parts[2] if len(parts) > 2 else None,
+                    "columns": len(table.columns),
+                    "measures": len(table.measures),
+                    "source_file": table.provenance.source_file,
                     "status": table.status,
                 }
             )
@@ -64,7 +68,11 @@ def unresolved_tables(project_id: str, session: Session = Depends(db_session)):
                 continue
             out.append(
                 {
+                    "model": model.name,
                     "power_bi_table": table.name,
+                    "columns": len(table.columns),
+                    "measures": len(table.measures),
+                    "source_file": table.provenance.source_file,
                     "reason": (
                         "No Teradata source recognized in this table's partition "
                         "(not a Teradata.Database(...) M query, or the table has no "

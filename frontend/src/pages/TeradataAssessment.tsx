@@ -43,7 +43,7 @@ export function TeradataAssessment() {
     data.teradata_views === 0 && data.teradata_base_tables === 0 && referenced.length === 0 && unresolved.length === 0
 
   return (
-    <div className="page">
+    <div className="page page--full">
       <PageHeader
         title="Teradata Assessment"
         subtitle="Objects referenced from the Power BI model's own import queries, plus views and base tables once a Teradata SQL/DDL export is ingested."
@@ -77,10 +77,14 @@ export function TeradataAssessment() {
             emptyMessage="No Power BI table names a recognizable Teradata source."
             getRowKey={(r) => r.power_bi_table}
             columns={[
+              { header: 'Model', render: (r) => r.model },
               { header: 'Power BI Table', render: (r) => r.power_bi_table },
               { header: 'Database', render: (r) => r.teradata_database ?? '—' },
               { header: 'Schema', render: (r) => r.teradata_schema ?? '—' },
               { header: 'Teradata Object', render: (r) => r.teradata_object ?? '—' },
+              { header: 'Columns', render: (r) => r.columns },
+              { header: 'Measures', render: (r) => r.measures },
+              { header: 'Source File', render: (r) => r.source_file },
               { header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
             ]}
           />
@@ -91,7 +95,11 @@ export function TeradataAssessment() {
             emptyMessage="Every Power BI table resolved to a Teradata source."
             getRowKey={(r) => r.power_bi_table}
             columns={[
+              { header: 'Model', render: (r) => r.model },
               { header: 'Power BI Table', render: (r) => r.power_bi_table },
+              { header: 'Columns', render: (r) => r.columns },
+              { header: 'Measures', render: (r) => r.measures },
+              { header: 'Source File', render: (r) => r.source_file },
               { header: 'Reason', render: (r) => r.reason },
             ]}
           />

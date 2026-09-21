@@ -55,6 +55,10 @@ def test_referenced_objects_lists_only_real_teradata_backed_tables(db_session):
     assert rows[0]["teradata_database"] == "BNRPROD"
     assert rows[0]["teradata_schema"] == "CP_ED"
     assert rows[0]["teradata_object"] == "V_CPED_RUN_DATES"
+    assert rows[0]["model"] == "x"
+    assert rows[0]["columns"] == 1
+    assert rows[0]["measures"] == 0
+    assert rows[0]["source_file"] == "x.tmdl"
 
 
 def test_unresolved_tables_excludes_teradata_backed_and_system_tables(db_session):
@@ -65,3 +69,7 @@ def test_unresolved_tables_excludes_teradata_backed_and_system_tables(db_session
     # resolved (excluded). The auto-date LocalDateTable is a system table,
     # not a real object needing a Teradata source -> also excluded.
     assert [r["power_bi_table"] for r in rows] == ["DimCustomer"]
+    assert rows[0]["model"] == "x"
+    assert rows[0]["columns"] == 1
+    assert rows[0]["measures"] == 0
+    assert rows[0]["source_file"] == "x.tmdl"

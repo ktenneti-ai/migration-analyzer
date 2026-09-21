@@ -256,14 +256,22 @@ export interface GoldResponse extends PendingCollection {
 }
 
 export interface TeradataReferencedObject {
+  model: string
   power_bi_table: string
   teradata_database: string | null
   teradata_schema: string | null
   teradata_object: string | null
+  columns: number
+  measures: number
+  source_file: string
   status: Status
 }
 
 export interface TeradataUnresolvedTable {
+  model: string
   power_bi_table: string
+  columns: number
+  measures: number
+  source_file: string
   reason: string
 }
