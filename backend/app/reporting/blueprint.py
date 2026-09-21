@@ -47,7 +47,9 @@ _DEFERRED_SECTIONS: list[tuple[str, str, str]] = [
 
 def build_report(data: ProjectData, graph_summary: dict) -> AssessmentReport:
     dashboard = compute_dashboard(data)
-    tables = [t for m in data.semantic_models for t in m.tables]
+    # Excludes Power BI's Auto Date/Time system tables, matching compute_dashboard
+    # (see its comment) so the report's own sections agree with its executive summary.
+    tables = [t for m in data.semantic_models for t in m.tables if t.display_name is None]
     measures = [meas for t in tables for meas in t.measures]
 
     sections: list[ReportSection] = []

@@ -177,6 +177,20 @@ h1 {
   flex-shrink: 0;
 }
 
+.filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.filter-toggle input {
+  cursor: pointer;
+}
+
 /* A hairline rule with an inline label — a real division of content, not
    a decorative eyebrow. Sentence case, no tracking, no all-caps. */
 .section-label {

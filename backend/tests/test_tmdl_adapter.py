@@ -164,6 +164,61 @@ def test_auto_date_table_without_a_relationship_gets_a_generic_label():
     assert model.tables[0].display_name == "Date Table (auto-generated)"
 
 
+def test_dashboard_excludes_auto_date_tables_and_their_relationships(db_session):
+    # Power BI Desktop's own model view never counts Auto Date/Time tables as
+    # real tables — the assessment's dashboard should agree, so its counts
+    # match what the user sees in Power BI itself (reported discrepancy: PBI
+    # shows 11 tables/8 relationships, the assessment showed 27/23 before
+    # this fix because it counted every auto-generated calendar table too).
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    raw = (
+        "createOrReplace\n"
+        "\tmodel Model\n"
+        "\t\ttable RUN_DATES\n"
+        "\t\t\tcolumn LAST_UPDATE_DTTM\n"
+        "\t\t\t\tdataType: dateTime\n"
+        "\n"
+        "\t\ttable DimCustomer\n"
+        "\t\t\tcolumn CustomerKey\n"
+        "\t\t\t\tdataType: int64\n"
+        "\n"
+        "\t\ttable LocalDateTable_75add05e-23ff-4231-8e2a-ecf332e78bf4\n"
+        "\t\t\tisHidden\n"
+        "\t\t\tcolumn Date\n"
+        "\t\t\t\tdataType: dateTime\n"
+        "\t\t\tannotation __PBI_LocalDateTable = true\n"
+        "\n"
+        "\t\trelationship r1\n"
+        "\t\t\tfromColumn: RUN_DATES.LAST_UPDATE_DTTM\n"
+        "\t\t\ttoColumn: LocalDateTable_75add05e-23ff-4231-8e2a-ecf332e78bf4.Date\n"
+        "\n"
+        "\t\trelationship r2\n"
+        "\t\t\tfromColumn: RUN_DATES.LAST_UPDATE_DTTM\n"
+        "\t\t\ttoColumn: DimCustomer.CustomerKey\n"
+    )
+    client = TestClient(app)
+    project_id = client.post("/api/projects", json={"name": "Dashboard Filter Test"}).json()["id"]
+    resp = client.post(
+        f"/api/projects/{project_id}/ingest",
+        files={"file": ("x.tmdl", raw.encode(), "application/octet-stream")},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["tables_extracted"] == 3  # raw extraction still reports everything parsed
+
+    dashboard = client.get(f"/api/projects/{project_id}/dashboard").json()
+    assert dashboard["tables"] == 2  # RUN_DATES, DimCustomer — not the auto-date table
+    assert dashboard["relationships"] == 1  # r2 only — r1 touches the auto-date table
+
+    # The raw inventory endpoints still return everything — hiding system
+    # tables by default is a presentation choice made in the frontend, not
+    # data loss in the API.
+    tables = client.get(f"/api/projects/{project_id}/powerbi/tables").json()
+    assert len(tables) == 3
+
+
 def test_ingest_tmdl_file_end_to_end(db_session, sample_data_dir):
     from fastapi.testclient import TestClient
 
