@@ -10,6 +10,8 @@ import type {
   RelationshipRow,
   SqlConversionResponse,
   TableRow,
+  TeradataReferencedObject,
+  TeradataUnresolvedTable,
 } from '../types/canonical'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -46,6 +48,10 @@ export const api = {
   getSqlConversion: (id: string) =>
     request<SqlConversionResponse>(`/projects/${id}/sql-conversion`),
   getGold: (id: string) => request<GoldResponse>(`/projects/${id}/gold`),
+  getTeradataReferencedObjects: (id: string) =>
+    request<TeradataReferencedObject[]>(`/projects/${id}/teradata/referenced-objects`),
+  getTeradataUnresolvedTables: (id: string) =>
+    request<TeradataUnresolvedTable[]>(`/projects/${id}/teradata/unresolved-tables`),
   getMetricViewExportUrl: (id: string, factTable: string) =>
     `/api/projects/${id}/gold/metric-view/${encodeURIComponent(factTable)}/export`,
   getWrapperViewExportUrl: (id: string, factTable: string) =>

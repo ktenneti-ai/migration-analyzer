@@ -254,3 +254,16 @@ export interface GoldResponse extends PendingCollection {
   metric_views: MetricViewSpec[]
   wrapper_views: WrapperViewSpec[]
 }
+
+export interface TeradataReferencedObject {
+  power_bi_table: string
+  teradata_database: string | null
+  teradata_schema: string | null
+  teradata_object: string | null
+  status: Status
+}
+
+export interface TeradataUnresolvedTable {
+  power_bi_table: string
+  reason: string
+}

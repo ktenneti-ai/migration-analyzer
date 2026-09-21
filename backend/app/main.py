@@ -14,6 +14,7 @@ from app.api.routes import (
     projects,
     report,
     sql_conversion,
+    teradata,
 )
 from app.db.session import init_db
 
@@ -49,6 +50,7 @@ app.include_router(report.router)
 app.include_router(migration_plan.router)
 app.include_router(sql_conversion.router)
 app.include_router(metric_view.router)
+app.include_router(teradata.router)
 
 
 @app.get("/api/health")
