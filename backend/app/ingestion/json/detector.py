@@ -8,8 +8,18 @@ without extraction — nothing is discarded.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from enum import Enum
+
+# TMDL (Tabular Model Definition Language) is a common Power BI / Tabular
+# Editor export format that people sometimes save with a .json extension —
+# it isn't JSON at all, so json.loads fails immediately with a cryptic
+# "Expecting value: line 1 column 1" error. Recognize its characteristic
+# top-level keywords so we can say what's actually wrong instead.
+_TMDL_HINT_RE = re.compile(
+    r"^(createOrReplace\b|model\s|table\s|relationship\s|expression\s|cultureInfo\s|annotation\s|ref\s)"
+)
 
 
 class DetectedSchema(str, Enum):
@@ -34,6 +44,13 @@ def detect(raw_text: str) -> DetectionResult:
     try:
         payload = json.loads(raw_text)
     except json.JSONDecodeError as exc:
+        if _TMDL_HINT_RE.match(raw_text.lstrip()):
+            raise InvalidJSONError(
+                "This looks like a TMDL (Tabular Model Definition Language) file, not JSON — "
+                "TMDL ingestion isn't implemented yet; JSON is the only supported format right "
+                "now. Export the semantic model as JSON instead (e.g. Tabular Editor's "
+                "'Save As JSON' / a .bim file), or ask for TMDL support to be added."
+            ) from exc
         raise InvalidJSONError(f"Invalid JSON: {exc}") from exc
 
     if not isinstance(payload, dict):

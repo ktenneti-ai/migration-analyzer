@@ -38,3 +38,10 @@ def test_invalid_json_raises():
 def test_empty_string_raises():
     with pytest.raises(InvalidJSONError):
         detect("")
+
+
+def test_tmdl_file_gives_a_specific_error_not_a_raw_parser_message():
+    tmdl = "createOrReplace\r\n\r\n\tmodel Model\r\n\t\tculture: en-US\r\n"
+    with pytest.raises(InvalidJSONError) as exc_info:
+        detect(tmdl)
+    assert "TMDL" in str(exc_info.value)
