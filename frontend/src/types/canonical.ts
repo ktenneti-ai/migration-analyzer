@@ -106,6 +106,9 @@ export interface LineageNode {
   node_type: 'SEMANTIC_MODEL' | 'TABLE' | 'COLUMN' | 'MEASURE'
   ref_id: string
   label: string
+  // True for nodes belonging to a Power BI Auto Date/Time table — hidden by
+  // default in the Lineage Explorer, matching the Tables/Relationships tabs.
+  is_system: boolean
 }
 
 export interface LineageEdge {

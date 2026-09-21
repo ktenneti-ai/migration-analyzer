@@ -278,6 +278,12 @@ class LineageNode(BaseModel):
     node_type: str  # SEMANTIC_MODEL | TABLE | COLUMN | MEASURE
     ref_id: str
     label: str
+    # True for a TABLE/COLUMN/MEASURE node that belongs to one of Power BI's
+    # Auto Date/Time tables (see PowerBITable.display_name) — Power BI
+    # Desktop's own model view hides these, so the UI hides them by default
+    # too, matching the dashboard's counts. The graph API still returns them;
+    # nothing is lost, only the default view is decluttered.
+    is_system: bool = False
 
 
 class LineageEdge(BaseModel):

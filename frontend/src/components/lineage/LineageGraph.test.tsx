@@ -5,10 +5,10 @@ import { LineageGraph } from './LineageGraph'
 
 const fixture: LineageGraphData = {
   nodes: [
-    { id: 'm1', node_type: 'SEMANTIC_MODEL', ref_id: 'm1', label: 'Finance' },
-    { id: 't1', node_type: 'TABLE', ref_id: 't1', label: 'FactSales' },
-    { id: 'c1', node_type: 'COLUMN', ref_id: 'c1', label: 'FactSales.Revenue' },
-    { id: 'me1', node_type: 'MEASURE', ref_id: 'me1', label: 'Total Revenue' },
+    { id: 'm1', node_type: 'SEMANTIC_MODEL', ref_id: 'm1', label: 'Finance', is_system: false },
+    { id: 't1', node_type: 'TABLE', ref_id: 't1', label: 'FactSales', is_system: false },
+    { id: 'c1', node_type: 'COLUMN', ref_id: 'c1', label: 'FactSales.Revenue', is_system: false },
+    { id: 'me1', node_type: 'MEASURE', ref_id: 'me1', label: 'Total Revenue', is_system: false },
   ],
   edges: [
     { id: 'e1', source_node_id: 't1', target_node_id: 'm1', edge_type: 'TABLE_TO_MODEL' },

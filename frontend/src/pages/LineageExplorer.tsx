@@ -11,6 +11,7 @@ export function LineageExplorer() {
   const { projectId, refreshKey } = useProject()
   const [data, setData] = useState<LineageGraphData | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [showSystemTables, setShowSystemTables] = useState(false)
 
   useEffect(() => {
     if (!projectId) return
@@ -37,13 +38,36 @@ export function LineageExplorer() {
     )
   }
 
+  const systemCount = data.nodes.filter((n) => n.is_system && n.node_type === 'TABLE').length
+  const visibleData: LineageGraphData = showSystemTables
+    ? data
+    : (() => {
+        const visibleIds = new Set(data.nodes.filter((n) => !n.is_system).map((n) => n.id))
+        return {
+          nodes: data.nodes.filter((n) => !n.is_system),
+          edges: data.edges.filter((e) => visibleIds.has(e.source_node_id) && visibleIds.has(e.target_node_id)),
+        }
+      })()
+
   return (
     <div className="page page--full">
       <PageHeader
         title="Lineage Explorer"
         subtitle="Power BI stages only for now — Teradata and Databricks stages appear once that metadata is ingested."
+        actions={
+          systemCount > 0 ? (
+            <label className="filter-toggle">
+              <input
+                type="checkbox"
+                checked={showSystemTables}
+                onChange={(e) => setShowSystemTables(e.target.checked)}
+              />
+              Show {systemCount} Power BI system table{systemCount === 1 ? '' : 's'} (auto date/time)
+            </label>
+          ) : undefined
+        }
       />
-      <LineageGraph data={data} />
+      <LineageGraph data={visibleData} />
     </div>
   )
 }
