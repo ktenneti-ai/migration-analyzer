@@ -34,9 +34,16 @@ def build_nodes_and_edges(
     source_node_id: dict[str, str] = {}  # keyed by provenance.source_file
     teradata_node_id: dict[str, str] = {}  # keyed by the parsed Teradata object string
     model_node_id: dict[str, str] = {}
-    table_node_id: dict[str, str] = {}  # keyed by (model_id, table_name)
-    column_node_id: dict[str, str] = {}  # keyed by "table_name.column_name"
-    measure_node_id: dict[str, str] = {}  # keyed by measure name (global, matches dependency_parser)
+    table_node_id: dict[str, str] = {}  # keyed by "model_id:table_name"
+    # Keyed by model_id (not just name) — dependency_parser.resolve_dependencies
+    # runs one model at a time, so a measure's referenced_measures/columns are
+    # only ever meant to resolve within that same model (DAX itself can't
+    # cross-reference between separate Power BI files). Keying by bare name
+    # alone would let two files that happen to share a table/column/measure
+    # name silently overwrite each other's lineage node, wiring a measure in
+    # file A to file B's same-named object instead of its own.
+    column_node_id: dict[str, str] = {}  # keyed by "model_id:table_name.column_name"
+    measure_node_id: dict[str, str] = {}  # keyed by "model_id:measure_name"
 
     for model in models:
         source_file = model.provenance.source_file
@@ -108,7 +115,7 @@ def build_nodes_and_edges(
 
             for column in table.columns:
                 c_id = new_id()
-                column_node_id[f"{table.name}.{column.name}"] = c_id
+                column_node_id[f"{model.id}:{table.name}.{column.name}"] = c_id
                 nodes.append(
                     LineageNode(
                         id=c_id,
@@ -132,7 +139,7 @@ def build_nodes_and_edges(
 
             for measure in table.measures:
                 mm_id = new_id()
-                measure_node_id[measure.name] = mm_id
+                measure_node_id[f"{model.id}:{measure.name}"] = mm_id
                 nodes.append(
                     LineageNode(
                         id=mm_id,
@@ -170,21 +177,22 @@ def build_nodes_and_edges(
                 )
 
     # Second pass: measure -> measure / measure -> column edges (needs all
-    # measure nodes to exist first, since references can cross tables).
+    # measure nodes to exist first, since references can cross tables —
+    # but never cross models; see the model.id-scoped keys above).
     for model in models:
         for table in model.tables:
             for measure in table.measures:
-                src = measure_node_id.get(measure.name)
+                src = measure_node_id.get(f"{model.id}:{measure.name}")
                 if src is None:
                     continue
                 for ref_measure in measure.referenced_measures:
-                    dst = measure_node_id.get(ref_measure)
+                    dst = measure_node_id.get(f"{model.id}:{ref_measure}")
                     if dst:
                         edges.append(
                             LineageEdge(id=new_id(), source_node_id=src, target_node_id=dst, edge_type="MEASURE_TO_MEASURE")
                         )
                 for ref_column in measure.referenced_columns:
-                    dst = column_node_id.get(ref_column)
+                    dst = column_node_id.get(f"{model.id}:{ref_column}")
                     if dst:
                         edges.append(
                             LineageEdge(id=new_id(), source_node_id=src, target_node_id=dst, edge_type="MEASURE_TO_COLUMN")

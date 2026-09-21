@@ -96,6 +96,46 @@ def test_auto_date_table_nodes_are_flagged_system_and_ordinary_nodes_are_not():
     assert date_column_node.is_system is True
 
 
+def test_two_models_with_the_same_table_and_measure_names_stay_separate():
+    # Two separate Power BI files ingested into one project can easily share
+    # table/column/measure names (e.g. both have a "Sales" table with a
+    # "Revenue" column) without being the same object. The lineage graph
+    # must not silently merge them just because the names collide.
+    raw = (
+        "createOrReplace\n"
+        "\tmodel Model\n"
+        "\t\ttable Sales\n"
+        "\t\t\tcolumn Revenue\n"
+        "\t\t\t\tdataType: decimal\n"
+        "\t\t\tmeasure Total = SUM(Sales[Revenue])\n"
+    )
+    model_a = extract_semantic_model_from_tmdl(raw, source_file="a.tmdl", project_id="p1", model_name="A")
+    resolve_dependencies(model_a)
+    model_b = extract_semantic_model_from_tmdl(raw, source_file="b.tmdl", project_id="p1", model_name="B")
+    resolve_dependencies(model_b)
+
+    nodes, edges = build_nodes_and_edges([model_a, model_b])
+
+    table_nodes = [n for n in nodes if n.node_type == "TABLE" and n.label == "Sales"]
+    column_nodes = [n for n in nodes if n.node_type == "COLUMN" and n.label == "Sales.Revenue"]
+    measure_nodes = [n for n in nodes if n.node_type == "MEASURE" and n.label == "Total"]
+    assert len(table_nodes) == 2
+    assert len(column_nodes) == 2
+    assert len(measure_nodes) == 2
+
+    # Each model's own "Total" measure must link to that same model's own
+    # "Sales.Revenue" column — not its counterpart in the other model.
+    m2c = {e.source_node_id: e.target_node_id for e in edges if e.edge_type == "MEASURE_TO_COLUMN"}
+    for measure_node in measure_nodes:
+        linked_column_id = m2c[measure_node.id]
+        column_node = next(c for c in column_nodes if c.id == linked_column_id)
+        # The linked column must belong to the same table instance as the
+        # measure (found via the measure's own MEASURE_TO_TABLE edge).
+        measure_table_id = next(e.target_node_id for e in edges if e.source_node_id == measure_node.id and e.edge_type == "MEASURE_TO_TABLE")
+        column_table_id = next(e.target_node_id for e in edges if e.source_node_id == column_node.id and e.edge_type == "COLUMN_TO_TABLE")
+        assert measure_table_id == column_table_id
+
+
 def test_teradata_backed_table_gets_a_teradata_source_node_and_edge():
     # The Teradata Assessment page links a Power BI table to its upstream
     # Teradata object via source_hint — the lineage graph must show the same
