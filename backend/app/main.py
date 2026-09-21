@@ -61,14 +61,19 @@ def health():
 
 
 # TEMPORARY — Codespaces diagnostic only, remove once the frontend startup
-# issue is resolved. Exposes .devcontainer/start.sh's frontend startup log
-# without requiring SSH (which itself has been unreliable in this repo's
-# Codespaces environment) so the vite dev server's actual failure, if any,
-# can be read from outside the container via the already-working backend
-# port. Read-only, no user input.
-@app.get("/api/_debug/frontend-log", response_class=PlainTextResponse)
-def _debug_frontend_log():
-    path = "/tmp/migration-analyzer-logs/frontend.log"
+# issue is resolved. Exposes .devcontainer/start.sh's own logs without
+# requiring SSH (which itself has been unreliable in this repo's Codespaces
+# environment) so a startup failure can be read from outside the container
+# via the already-working backend port. Read-only, no user input beyond
+# picking one of three fixed filenames.
+_DEBUG_LOG_FILES = {"frontend", "backend", "start"}
+
+
+@app.get("/api/_debug/log/{name}", response_class=PlainTextResponse)
+def _debug_log(name: str):
+    if name not in _DEBUG_LOG_FILES:
+        return f"unknown log {name!r}; choose one of {sorted(_DEBUG_LOG_FILES)}"
+    path = f"/tmp/migration-analyzer-logs/{name}.log"
     if not os.path.exists(path):
         return f"{path} does not exist"
     with open(path) as f:
