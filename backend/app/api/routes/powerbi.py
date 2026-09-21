@@ -73,6 +73,7 @@ def relationships(project_id: str, session: Session = Depends(db_session)):
         for rel in model.relationships:
             out.append(
                 {
+                    "model": model.name,
                     "from_table": rel.from_table,
                     "from_table_display": display_by_name.get(rel.from_table),
                     "from_column": rel.from_column,
@@ -82,6 +83,7 @@ def relationships(project_id: str, session: Session = Depends(db_session)):
                     "cardinality": rel.cardinality,
                     "cross_filter_direction": rel.cross_filter_direction,
                     "is_active": rel.is_active,
+                    "source": rel.provenance.source_file,
                     "status": rel.status,
                 }
             )

@@ -782,15 +782,17 @@ td {
   vertical-align: top;
 }
 
-/* A single unbroken long identifier (a raw TMDL GUID-suffixed table name,
-   for example) must never be allowed to force the whole table — and the
-   page around it — wider than the viewport. */
+/* Table/column names wrap rather than truncate, so a long derived display
+   name (e.g. "Date Table — OCCUPANCY_BY_HOUR_OF_DAY_AND_TIER_BI.DATE_AND_HOUR")
+   is always fully visible instead of being cut off with an ellipsis. The
+   max-width keeps one unbroken long identifier from forcing the whole
+   table wider than the viewport; .table-card's overflow:auto is the
+   fallback for anything that still doesn't fit. */
 .table-name {
   display: inline-block;
-  max-width: 240px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 340px;
+  white-space: normal;
+  overflow-wrap: break-word;
   vertical-align: bottom;
 }
 

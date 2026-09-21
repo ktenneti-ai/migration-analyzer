@@ -60,6 +60,7 @@ export interface MeasureRow {
 }
 
 export interface RelationshipRow {
+  model: string
   from_table: string
   from_table_display: string | null
   from_column: string
@@ -69,6 +70,7 @@ export interface RelationshipRow {
   cardinality: string
   cross_filter_direction: string
   is_active: boolean
+  source: string
   status: Status
 }
 
