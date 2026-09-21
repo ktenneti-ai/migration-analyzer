@@ -14,7 +14,10 @@ import type { Dashboard as DashboardData, MigrationGap, MigrationPhase } from '.
 import { NoProjectSelected } from './NoProjectSelected'
 
 function computeStages(data: DashboardData): StageInfo[] {
-  const teradataTotal = data.teradata_views + data.teradata_base_tables + data.teradata_referenced_objects
+  // teradata_views/teradata_base_tables are a breakdown OF
+  // teradata_referenced_objects (see AssessmentSummary.tsx), not additional
+  // objects on top of it.
+  const teradataTotal = data.teradata_referenced_objects
   const databricksTotal = data.bronze_tables + data.silver_tables + data.gold_facts + data.gold_dimensions
 
   return [
@@ -68,18 +71,11 @@ function buildFlow(data: DashboardData): FlowStage[] {
     {
       key: 'teradata',
       name: 'Teradata',
-      count:
-        data.teradata_base_tables > 0
-          ? data.teradata_base_tables
-          : data.teradata_referenced_objects > 0
-            ? data.teradata_referenced_objects
-            : null,
+      count: data.teradata_referenced_objects > 0 ? data.teradata_referenced_objects : null,
       note:
-        data.teradata_base_tables > 0
-          ? undefined
-          : data.teradata_referenced_objects > 0
-            ? 'Referenced via Power BI import queries — no Teradata SQL/DDL export ingested yet'
-            : 'Teradata discovery not completed',
+        data.teradata_referenced_objects > 0
+          ? 'Referenced via Power BI import queries — no Teradata SQL/DDL export ingested yet'
+          : 'Teradata discovery not completed',
     },
     {
       key: 'bronze',

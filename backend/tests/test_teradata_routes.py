@@ -55,6 +55,7 @@ def test_referenced_objects_lists_only_real_teradata_backed_tables(db_session):
     assert rows[0]["teradata_database"] == "BNRPROD"
     assert rows[0]["teradata_schema"] == "CP_ED"
     assert rows[0]["teradata_object"] == "V_CPED_RUN_DATES"
+    assert rows[0]["teradata_object_type"] == "VIEW"
     assert rows[0]["model"] == "x"
     assert rows[0]["columns"] == 1
     assert rows[0]["measures"] == 0
@@ -86,3 +87,37 @@ def test_dashboard_counts_agree_with_the_teradata_routes(db_session):
 
     assert dashboard["teradata_referenced_objects"] == len(referenced) == 1
     assert dashboard["teradata_unresolved_objects"] == len(unresolved) == 1
+    assert dashboard["teradata_views"] == 1  # V_CPED_RUN_DATES -> "V_" naming convention
+    assert dashboard["teradata_base_tables"] == 0
+
+
+def test_teradata_object_without_the_v_prefix_is_classified_as_a_base_table(db_session):
+    raw = (
+        "createOrReplace\n"
+        "\tmodel Model\n"
+        "\t\ttable STAGING\n"
+        "\t\t\tcolumn Id\n"
+        "\t\t\t\tdataType: int64\n"
+        "\n"
+        "\t\t\tpartition STAGING = m\n"
+        "\t\t\t\tmode: import\n"
+        "\t\t\t\tsource =\n"
+        "\t\t\t\t\t\tlet\n"
+        '\t\t\t\t\t\t    Source = Teradata.Database("BNRPROD", [HierarchicalNavigation=true]),\n'
+        '\t\t\t\t\t\t    CP_ED = Source{[Schema="CP_ED"]}[Data],\n'
+        '\t\t\t\t\t\t    STAGING_TBL1 = CP_ED{[Name="STAGING_TBL"]}[Data]\n'
+        "\t\t\t\t\t\tin\n"
+        "\t\t\t\t\t\t    STAGING_TBL1\n"
+    )
+    client = TestClient(app)
+    project_id = client.post("/api/projects", json={"name": "Base Table Test"}).json()["id"]
+    client.post(
+        f"/api/projects/{project_id}/ingest",
+        files={"file": ("y.tmdl", raw.encode(), "application/octet-stream")},
+    )
+    rows = client.get(f"/api/projects/{project_id}/teradata/referenced-objects").json()
+    assert rows[0]["teradata_object_type"] == "BASE_TABLE"
+
+    dashboard = client.get(f"/api/projects/{project_id}/dashboard").json()
+    assert dashboard["teradata_base_tables"] == 1
+    assert dashboard["teradata_views"] == 0

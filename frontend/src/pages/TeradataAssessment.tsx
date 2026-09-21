@@ -46,7 +46,7 @@ export function TeradataAssessment() {
     <div className="page page--full">
       <PageHeader
         title="Teradata Assessment"
-        subtitle="Objects referenced from the Power BI model's own import queries, plus views and base tables once a Teradata SQL/DDL export is ingested."
+        subtitle="Objects referenced from the Power BI model's own import queries, classified as views or base tables by Teradata's own naming convention."
       />
 
       <SectionCard title="Teradata Objects">
@@ -64,12 +64,11 @@ export function TeradataAssessment() {
         />
       ) : (
         <>
-          {data.teradata_views === 0 && data.teradata_base_tables === 0 && (
-            <p className="muted" style={{ marginBottom: 16 }}>
-              Views and base tables require a Teradata SQL/DDL export, which hasn't been ingested for this
-              project. The objects below were identified from the Power BI model's own import queries instead.
-            </p>
-          )}
+          <p className="muted" style={{ marginBottom: 16 }}>
+            Views/Base Tables above are classified from each referenced object's name (a "V_" prefix marks a
+            view — a confirmed naming convention, not a live Teradata catalog scan). No Teradata SQL/DDL export
+            has been ingested for this project yet.
+          </p>
 
           <div className="section-label">Referenced Teradata objects</div>
           <InventoryTable
@@ -82,6 +81,11 @@ export function TeradataAssessment() {
               { header: 'Database', render: (r) => r.teradata_database ?? '—' },
               { header: 'Schema', render: (r) => r.teradata_schema ?? '—' },
               { header: 'Teradata Object', render: (r) => r.teradata_object ?? '—' },
+              {
+                header: 'Object Type',
+                render: (r) =>
+                  r.teradata_object_type === 'VIEW' ? 'View' : r.teradata_object_type === 'BASE_TABLE' ? 'Base Table' : '—',
+              },
               { header: 'Columns', render: (r) => r.columns },
               { header: 'Measures', render: (r) => r.measures },
               { header: 'Source File', render: (r) => r.source_file },

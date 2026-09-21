@@ -71,6 +71,27 @@ _TERADATA_DATABASE_RE = re.compile(r'Teradata\.Database\(\s*"([^"]+)"')
 _M_SCHEMA_RE = re.compile(r'Schema\s*=\s*"([^"]+)"')
 _M_TABLE_NAME_RE = re.compile(r'Name\s*=\s*"([^"]+)"')
 
+# Confirmed naming convention (not an app-invented inference): this
+# Teradata environment prefixes every view with "V_" — a base table has no
+# such prefix. Exported so every reader of a parsed Teradata object name
+# (teradata.py's API routes, compute_dashboard, the lineage graph builder)
+# classifies it the same way instead of re-deriving the rule.
+_TERADATA_VIEW_PREFIX = "V_"
+
+
+def parse_teradata_source_hint(source_hint: str) -> dict:
+    """Splits a "Teradata: DATABASE.SCHEMA.OBJECT" hint (as produced by
+    _extract_teradata_source_hint) back into its parts, plus an object_type
+    classification (VIEW/BASE_TABLE/None) from the "V_" naming convention."""
+    parts = source_hint[len(TERADATA_SOURCE_HINT_PREFIX) :].split(".")
+    database = parts[0] if len(parts) > 0 else None
+    schema = parts[1] if len(parts) > 1 else None
+    obj = parts[2] if len(parts) > 2 else None
+    object_type = None
+    if obj:
+        object_type = "VIEW" if obj.upper().startswith(_TERADATA_VIEW_PREFIX) else "BASE_TABLE"
+    return {"database": database, "schema": schema, "object": obj, "object_type": object_type}
+
 
 def _extract_teradata_source_hint(table_node) -> str | None:
     for partition_node in table_node.children:

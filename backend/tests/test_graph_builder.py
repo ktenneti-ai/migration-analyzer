@@ -127,7 +127,12 @@ def test_teradata_backed_table_gets_a_teradata_source_node_and_edge():
     teradata_nodes = [n for n in nodes if n.node_type == "TERADATA_SOURCE"]
     assert len(teradata_nodes) == 1
     assert teradata_nodes[0].label == "BNRPROD.CP_ED.V_CPED_RUN_DATES"
-    assert teradata_nodes[0].detail == {"database": "BNRPROD", "schema": "CP_ED", "object": "V_CPED_RUN_DATES"}
+    assert teradata_nodes[0].detail == {
+        "database": "BNRPROD",
+        "schema": "CP_ED",
+        "object": "V_CPED_RUN_DATES",
+        "object_type": "VIEW",
+    }
 
     run_dates_node = next(n for n in nodes if n.node_type == "TABLE" and n.label == "RUN_DATES")
     td_edges = [e for e in edges if e.edge_type == "TERADATA_TO_TABLE"]

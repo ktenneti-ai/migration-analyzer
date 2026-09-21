@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import db_session
-from app.ingestion.tmdl.tmdl_adapter import TERADATA_SOURCE_HINT_PREFIX
+from app.ingestion.tmdl.tmdl_adapter import TERADATA_SOURCE_HINT_PREFIX, parse_teradata_source_hint
 from app.metadata import store
 
 router = APIRouter(prefix="/api/projects", tags=["teradata"])
@@ -38,14 +38,15 @@ def referenced_objects(project_id: str, session: Session = Depends(db_session)):
                 continue  # Power BI auto-date system table, not a real Teradata object
             if not table.source_hint or not table.source_hint.startswith(TERADATA_SOURCE_HINT_PREFIX):
                 continue
-            parts = table.source_hint[len(TERADATA_SOURCE_HINT_PREFIX) :].split(".")
+            parsed = parse_teradata_source_hint(table.source_hint)
             out.append(
                 {
                     "model": model.name,
                     "power_bi_table": table.name,
-                    "teradata_database": parts[0] if len(parts) > 0 else None,
-                    "teradata_schema": parts[1] if len(parts) > 1 else None,
-                    "teradata_object": parts[2] if len(parts) > 2 else None,
+                    "teradata_database": parsed["database"],
+                    "teradata_schema": parsed["schema"],
+                    "teradata_object": parsed["object"],
+                    "teradata_object_type": parsed["object_type"],
                     "columns": len(table.columns),
                     "measures": len(table.measures),
                     "source_file": table.provenance.source_file,

@@ -263,6 +263,8 @@ export interface TeradataReferencedObject {
   teradata_database: string | null
   teradata_schema: string | null
   teradata_object: string | null
+  // Classified from Teradata's "V_" view-naming convention.
+  teradata_object_type: 'VIEW' | 'BASE_TABLE' | null
   columns: number
   measures: number
   source_file: string

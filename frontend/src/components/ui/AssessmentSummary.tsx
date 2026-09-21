@@ -4,7 +4,11 @@ import type { Dashboard } from '../../types/canonical'
 
 export function AssessmentSummary({ data }: { data: Dashboard }) {
   const powerBiTotal = data.semantic_models + data.tables + data.columns + data.measures + data.relationships
-  const teradataTotal = data.teradata_views + data.teradata_base_tables + data.teradata_referenced_objects
+  // teradata_views/teradata_base_tables are a breakdown OF
+  // teradata_referenced_objects (classified from each object's own "V_"
+  // naming convention), not additional objects on top of it — summing all
+  // three would double-count.
+  const teradataTotal = data.teradata_referenced_objects
   const databricksTotal = data.bronze_tables + data.silver_tables + data.gold_facts + data.gold_dimensions
 
   return (
@@ -21,7 +25,7 @@ export function AssessmentSummary({ data }: { data: Dashboard }) {
         label="Teradata Objects"
         sub={
           teradataTotal > 0
-            ? `${data.teradata_views} Views • ${data.teradata_base_tables} Base Tables • ${data.teradata_referenced_objects} Referenced (via Power BI)`
+            ? `${data.teradata_views} Views • ${data.teradata_base_tables} Base Tables (via Power BI)`
             : 'Teradata discovery not completed'
         }
       />

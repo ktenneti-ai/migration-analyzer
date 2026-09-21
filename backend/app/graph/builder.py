@@ -10,18 +10,9 @@ from __future__ import annotations
 
 import networkx as nx
 
-from app.ingestion.tmdl.tmdl_adapter import TERADATA_SOURCE_HINT_PREFIX
+from app.ingestion.tmdl.tmdl_adapter import TERADATA_SOURCE_HINT_PREFIX, parse_teradata_source_hint
 from app.metadata.models import LineageEdge, LineageNode, PowerBISemanticModel
 from app.metadata.store import new_id
-
-
-def _parse_teradata_hint(source_hint: str) -> dict:
-    parts = source_hint[len(TERADATA_SOURCE_HINT_PREFIX) :].split(".")
-    return {
-        "database": parts[0] if len(parts) > 0 else None,
-        "schema": parts[1] if len(parts) > 1 else None,
-        "object": parts[2] if len(parts) > 2 else None,
-    }
 
 
 def build_graph(models: list[PowerBISemanticModel]) -> nx.MultiDiGraph:
@@ -108,7 +99,7 @@ def build_nodes_and_edges(
                             node_type="TERADATA_SOURCE",
                             ref_id=table.source_hint,
                             label=table.source_hint[len(TERADATA_SOURCE_HINT_PREFIX) :],
-                            detail=_parse_teradata_hint(table.source_hint),
+                            detail=parse_teradata_source_hint(table.source_hint),
                         )
                     )
                 edges.append(
