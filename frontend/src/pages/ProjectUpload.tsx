@@ -1,8 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api/client'
+import {
+  IconDashboard,
+  IconDatabricks,
+  IconGaps,
+  IconLineage,
+  IconPowerBI,
+  IconReport,
+} from '../components/icons/Icons'
 import { PageHeader } from '../components/layout/PageHeader'
 import { useProject } from '../state/ProjectContext'
-import type { Project } from '../types/canonical'
+import type { Dashboard, Project } from '../types/canonical'
 
 function defaultProjectNameFromFile(filename: string): string {
   const base = filename.replace(/\.(json|tmdl)$/i, '')
@@ -19,6 +28,7 @@ export function ProjectUpload() {
   const [error, setError] = useState<string | null>(null)
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null)
   const [pendingName, setPendingName] = useState('')
+  const [justIngested, setJustIngested] = useState<Dashboard | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const refreshList = () => api.listProjects().then(setProjects).catch((e) => setError(String(e)))
@@ -26,6 +36,12 @@ export function ProjectUpload() {
   useEffect(() => {
     refreshList()
   }, [])
+
+  // Switching projects (or deleting one) invalidates whatever "next steps"
+  // summary was showing for the previous project.
+  useEffect(() => {
+    setJustIngested(null)
+  }, [projectId])
 
   const createProject = async () => {
     if (!newName.trim()) return
@@ -37,9 +53,12 @@ export function ProjectUpload() {
 
   const doIngest = async (id: string, files: File[]) => {
     setError(null)
+    setJustIngested(null)
+    let anySucceeded = false
     for (const file of files) {
       try {
         const result = await api.ingestFile(id, file)
+        anySucceeded = true
         setStatus(
           `${file.name}: detected ${result.detected_schema}, extracted ${result.tables_extracted} table(s), ${result.measures_extracted} measure(s), ${result.gaps_found} gap(s) found.`,
         )
@@ -49,6 +68,9 @@ export function ProjectUpload() {
     }
     await refreshList()
     refreshShellData() // so the dashboard, header "last analyzed", etc. pick up the new data
+    if (anySucceeded) {
+      api.getDashboard(id).then(setJustIngested).catch(() => {})
+    }
   }
 
   const uploadFiles = (fileList: FileList | null) => {
@@ -208,6 +230,64 @@ export function ProjectUpload() {
         {status && <p className="status-msg status-msg--ok">{status}</p>}
         {error && <p className="status-msg status-msg--error">{error}</p>}
       </section>
+
+      {justIngested && (
+        <section className="card next-steps">
+          <h2>Where to next?</h2>
+          <p className="muted" style={{ marginBottom: 12 }}>
+            {currentProject?.name ?? 'This project'} now has {justIngested.tables} table(s), {justIngested.measures}{' '}
+            measure(s), and {justIngested.relationships} relationship(s). Here's where to find the analysis:
+          </p>
+          <div className="next-steps__grid">
+            <Link to="/" className="next-steps__link">
+              <IconDashboard width={18} height={18} />
+              <span>
+                <strong>Dashboard</strong>
+                <small>Full assessment summary at a glance</small>
+              </span>
+            </Link>
+            <Link to="/powerbi/tables" className="next-steps__link">
+              <IconPowerBI width={18} height={18} />
+              <span>
+                <strong>Power BI Inventory</strong>
+                <small>Browse extracted tables, measures & relationships</small>
+              </span>
+            </Link>
+            <Link to="/lineage" className="next-steps__link">
+              <IconLineage width={18} height={18} />
+              <span>
+                <strong>Lineage Explorer</strong>
+                <small>Visualize measure & table dependencies</small>
+              </span>
+            </Link>
+            <Link to="/gaps" className="next-steps__link">
+              <IconGaps width={18} height={18} />
+              <span>
+                <strong>Migration Gaps</strong>
+                <small>
+                  {justIngested.migration_gaps > 0
+                    ? `${justIngested.migration_gaps} gap(s) need attention`
+                    : 'No gaps found'}
+                </small>
+              </span>
+            </Link>
+            <Link to="/databricks" className="next-steps__link">
+              <IconDatabricks width={18} height={18} />
+              <span>
+                <strong>Databricks / Gold Design</strong>
+                <small>Candidate fact/dimension tables & generated SQL</small>
+              </span>
+            </Link>
+            <Link to="/report" className="next-steps__link">
+              <IconReport width={18} height={18} />
+              <span>
+                <strong>Assessment Report</strong>
+                <small>Full write-up, exportable as PDF/Word</small>
+              </span>
+            </Link>
+          </div>
+        </section>
+      )}
     </div>
   )
 }

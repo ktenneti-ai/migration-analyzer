@@ -677,6 +677,51 @@ button:hover {
   margin-bottom: 8px;
 }
 
+.next-steps__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.next-steps__link {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--panel);
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color var(--motion), background var(--motion);
+}
+
+.next-steps__link:hover {
+  border-color: var(--primary);
+  background: var(--panel-raised);
+}
+
+.next-steps__link svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--primary);
+}
+
+.next-steps__link span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.next-steps__link strong {
+  font-size: 13.5px;
+}
+
+.next-steps__link small {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
 .upload-dropzone__target {
   border: 1px dashed var(--rule);
   border-radius: 4px;
