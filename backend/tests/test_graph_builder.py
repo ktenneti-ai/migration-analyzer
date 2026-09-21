@@ -23,7 +23,10 @@ def test_graph_has_expected_node_types(sample_data_dir):
     nodes, edges = build_nodes_and_edges([model])
 
     node_types = {n.node_type for n in nodes}
-    assert node_types == {"SEMANTIC_MODEL", "TABLE", "COLUMN", "MEASURE"}
+    assert node_types == {"SOURCE", "SEMANTIC_MODEL", "TABLE", "COLUMN", "MEASURE"}
+
+    source_nodes = [n for n in nodes if n.node_type == "SOURCE"]
+    assert [n.label for n in source_nodes] == ["finance_model.json"]
 
     table_nodes = [n for n in nodes if n.node_type == "TABLE"]
     assert len(table_nodes) == 4
@@ -46,6 +49,20 @@ def test_graph_has_measure_to_measure_and_measure_to_column_edges(sample_data_di
     labels = {(node_by_id[e.source_node_id].label, node_by_id[e.target_node_id].label) for e in m2m}
     assert ("Gross Margin", "Total Revenue") in labels
     assert ("Gross Margin", "Total Cost") in labels
+
+
+def test_measure_node_detail_carries_dax_and_dependencies(sample_data_dir):
+    model = _finance_model(sample_data_dir)
+    nodes, _edges = build_nodes_and_edges([model])
+
+    gross_margin = next(n for n in nodes if n.node_type == "MEASURE" and n.label == "Gross Margin")
+    assert gross_margin.detail["expression"] == "[Total Revenue] - [Total Cost]"
+    assert set(gross_margin.detail["referenced_measures"]) == {"Total Revenue", "Total Cost"}
+    assert gross_margin.detail["table"]
+
+    revenue_column = next(n for n in nodes if n.node_type == "COLUMN" and n.label.endswith(".Revenue"))
+    assert revenue_column.detail["data_type"]
+    assert "expression" in revenue_column.detail
 
 
 def test_auto_date_table_nodes_are_flagged_system_and_ordinary_nodes_are_not():

@@ -103,12 +103,16 @@ export interface Dashboard {
 
 export interface LineageNode {
   id: string
-  node_type: 'SEMANTIC_MODEL' | 'TABLE' | 'COLUMN' | 'MEASURE'
+  node_type: 'SOURCE' | 'SEMANTIC_MODEL' | 'TABLE' | 'COLUMN' | 'MEASURE'
   ref_id: string
   label: string
   // True for nodes belonging to a Power BI Auto Date/Time table — hidden by
   // default in the Lineage Explorer, matching the Tables/Relationships tabs.
   is_system: boolean
+  // Click-to-inspect detail — DAX expression, dependencies, data type, etc.
+  // Shape varies by node_type; only fields the canonical model actually has
+  // are present (see backend/app/graph/builder.py).
+  detail: Record<string, unknown>
 }
 
 export interface LineageEdge {

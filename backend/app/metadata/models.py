@@ -275,7 +275,7 @@ class MigrationGap(BaseModel):
 
 class LineageNode(BaseModel):
     id: str
-    node_type: str  # SEMANTIC_MODEL | TABLE | COLUMN | MEASURE
+    node_type: str  # SOURCE | SEMANTIC_MODEL | TABLE | COLUMN | MEASURE
     ref_id: str
     label: str
     # True for a TABLE/COLUMN/MEASURE node that belongs to one of Power BI's
@@ -284,13 +284,19 @@ class LineageNode(BaseModel):
     # too, matching the dashboard's counts. The graph API still returns them;
     # nothing is lost, only the default view is decluttered.
     is_system: bool = False
+    # Everything the click-to-inspect detail panel shows beyond the label —
+    # DAX expression, dependencies, data type, etc. Shape varies by
+    # node_type; empty for node types with nothing more to show
+    # (SOURCE/SEMANTIC_MODEL). Never fabricated — only fields the canonical
+    # model actually has for that object are included.
+    detail: dict = Field(default_factory=dict)
 
 
 class LineageEdge(BaseModel):
     id: str
     source_node_id: str
     target_node_id: str
-    edge_type: str  # MEASURE_TO_MEASURE | MEASURE_TO_COLUMN | COLUMN_TO_TABLE | TABLE_TO_TABLE
+    edge_type: str  # SOURCE_TO_MODEL | TABLE_TO_MODEL | MEASURE_TO_MEASURE | MEASURE_TO_COLUMN | MEASURE_TO_TABLE | COLUMN_TO_TABLE | TABLE_TO_TABLE
 
 
 class ProjectData(BaseModel):

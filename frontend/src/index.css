@@ -27,6 +27,7 @@
   --warning-bg: #362c14;
   --danger: #e0645a;
   --danger-bg: #3a1f1c;
+  --node-source: #4bbd8f;
   --node-model: #a79cf0;
   --node-table: #5ab8e0;
   --node-column: #7db3d6;
@@ -59,6 +60,7 @@
     --warning-bg: #f7ecd8;
     --danger: #c6483e;
     --danger-bg: #f8e6e4;
+    --node-source: #2f8f66;
     --node-model: #8b7fd9;
     --node-table: #2b87b8;
     --node-column: #4d84a8;
@@ -83,6 +85,7 @@
   --warning-bg: #f7ecd8;
   --danger: #c6483e;
   --danger-bg: #f8e6e4;
+  --node-source: #2f8f66;
   --node-model: #8b7fd9;
   --node-table: #2b87b8;
   --node-column: #4d84a8;
@@ -1281,7 +1284,9 @@ tr:last-child td {
   position: absolute;
   top: 60px;
   right: 16px;
-  width: 220px;
+  width: 320px;
+  max-height: calc(100% - 90px);
+  overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--rule);
   border-radius: 4px;
@@ -1292,6 +1297,55 @@ tr:last-child td {
   margin: 0 0 4px;
   font-size: 13.5px;
   font-family: var(--font-mono);
+  word-break: break-word;
+}
+
+.lineage-explorer__trace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 12px;
+}
+
+.lineage-explorer__trace-actions button {
+  font-size: 11px;
+  padding: 4px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--panel-raised);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.lineage-explorer__trace-actions button.active {
+  border-color: var(--secondary);
+  color: var(--text);
+}
+
+.lineage-explorer__detail-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.lineage-detail-field__label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+  margin-bottom: 3px;
+}
+
+.lineage-detail-field__value {
+  font-size: 12.5px;
+  word-break: break-word;
+}
+
+.lineage-detail-field .dax-expr {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* ── Report / migration plan ───────────────────────────────────────── */
