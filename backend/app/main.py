@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 
 from app.api.routes import (
     ingestion,
@@ -56,3 +58,18 @@ app.include_router(teradata.router)
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+# TEMPORARY — Codespaces diagnostic only, remove once the frontend startup
+# issue is resolved. Exposes .devcontainer/start.sh's frontend startup log
+# without requiring SSH (which itself has been unreliable in this repo's
+# Codespaces environment) so the vite dev server's actual failure, if any,
+# can be read from outside the container via the already-working backend
+# port. Read-only, no user input.
+@app.get("/api/_debug/frontend-log", response_class=PlainTextResponse)
+def _debug_frontend_log():
+    path = "/tmp/migration-analyzer-logs/frontend.log"
+    if not os.path.exists(path):
+        return f"{path} does not exist"
+    with open(path) as f:
+        return f.read()
