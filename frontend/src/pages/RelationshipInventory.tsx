@@ -24,7 +24,7 @@ export function RelationshipInventory() {
   if (error) return <p className="status-msg status-msg--error">{error}</p>
 
   return (
-    <div className="page">
+    <div className="page page--full">
       <PageHeader title="Relationship Inventory" subtitle="Relationships between Power BI tables." />
       <PowerBITabs />
       {!rows ? (
