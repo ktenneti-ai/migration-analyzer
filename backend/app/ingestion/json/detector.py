@@ -1,9 +1,11 @@
-"""JSON schema detection.
+"""Upload content-shape detection.
 
-Inspect an uploaded JSON file's structure to decide which adapter should
-process it (spec section 4: "Do NOT reject a JSON file simply because its
-schema is unfamiliar"). Unknown shapes are still accepted and stored, just
-without extraction — nothing is discarded.
+Despite the package name (this module predates TMDL support), it now
+inspects both JSON and TMDL uploads — a single entry point matches the
+single `.json`/`.tmdl` upload endpoint. Detection never rejects an
+unfamiliar *shape* (spec section 4): an unrecognized JSON object is stored
+as UNKNOWN_GENERIC rather than refused, and TMDL content is a first-class
+schema with its own adapter, not an error case.
 """
 from __future__ import annotations
 
@@ -13,10 +15,10 @@ from dataclasses import dataclass
 from enum import Enum
 
 # TMDL (Tabular Model Definition Language) is a common Power BI / Tabular
-# Editor export format that people sometimes save with a .json extension —
-# it isn't JSON at all, so json.loads fails immediately with a cryptic
-# "Expecting value: line 1 column 1" error. Recognize its characteristic
-# top-level keywords so we can say what's actually wrong instead.
+# Editor export format that people sometimes save with a .json extension.
+# It isn't JSON, so check for its characteristic top-level keywords before
+# ever attempting json.loads — otherwise it fails with a cryptic "Expecting
+# value: line 1 column 1" error instead of being routed to its own adapter.
 _TMDL_HINT_RE = re.compile(
     r"^(createOrReplace\b|model\s|table\s|relationship\s|expression\s|cultureInfo\s|annotation\s|ref\s)"
 )
@@ -24,6 +26,7 @@ _TMDL_HINT_RE = re.compile(
 
 class DetectedSchema(str, Enum):
     POWER_BI_MODEL = "power_bi_model"
+    TMDL = "tmdl"
     TERADATA = "teradata"
     DATABRICKS = "databricks"
     UNKNOWN_GENERIC = "unknown_generic"
@@ -41,16 +44,16 @@ class DetectionResult:
 
 
 def detect(raw_text: str) -> DetectionResult:
+    if _TMDL_HINT_RE.match(raw_text.lstrip()):
+        return DetectionResult(
+            schema=DetectedSchema.TMDL,
+            summary="TMDL (Tabular Model Definition Language) semantic model script.",
+            payload={"raw_text": raw_text},
+        )
+
     try:
         payload = json.loads(raw_text)
     except json.JSONDecodeError as exc:
-        if _TMDL_HINT_RE.match(raw_text.lstrip()):
-            raise InvalidJSONError(
-                "This looks like a TMDL (Tabular Model Definition Language) file, not JSON — "
-                "TMDL ingestion isn't implemented yet; JSON is the only supported format right "
-                "now. Export the semantic model as JSON instead (e.g. Tabular Editor's "
-                "'Save As JSON' / a .bim file), or ask for TMDL support to be added."
-            ) from exc
         raise InvalidJSONError(f"Invalid JSON: {exc}") from exc
 
     if not isinstance(payload, dict):

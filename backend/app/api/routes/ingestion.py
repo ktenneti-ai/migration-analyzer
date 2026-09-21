@@ -11,10 +11,10 @@ router = APIRouter(prefix="/api/projects", tags=["ingestion"])
 
 @router.post("/{project_id}/ingest")
 async def ingest(project_id: str, file: UploadFile, session: Session = Depends(db_session)):
-    if not file.filename or not file.filename.lower().endswith(".json"):
+    if not file.filename or not file.filename.lower().endswith((".json", ".tmdl")):
         raise HTTPException(
             status_code=400,
-            detail="Milestone 1 supports .json files only; other formats are a future milestone.",
+            detail="Milestone 1 supports .json and .tmdl files only; other formats are a future milestone.",
         )
     raw_bytes = await file.read()
     try:

@@ -1,0 +1,143 @@
+import os
+
+from app.ingestion.json.detector import DetectedSchema, detect
+from app.ingestion.tmdl.parser import (
+    collect_properties,
+    find_all,
+    parse_name_and_expression,
+    parse_tmdl,
+    split_table_column,
+)
+from app.ingestion.tmdl.tmdl_adapter import extract_semantic_model_from_tmdl
+from app.metadata.models import Status
+from app.parsers.dax.dependency_parser import resolve_dependencies
+
+
+def _load_sample(sample_data_dir):
+    with open(os.path.join(sample_data_dir, "finance_model.tmdl")) as f:
+        return f.read()
+
+
+def test_detector_recognizes_tmdl(sample_data_dir):
+    raw = _load_sample(sample_data_dir)
+    result = detect(raw)
+    assert result.schema == DetectedSchema.TMDL
+
+
+def test_parser_builds_expected_tree_shape(sample_data_dir):
+    raw = _load_sample(sample_data_dir)
+    roots = parse_tmdl(raw)
+    tables = find_all(roots, "table")
+    assert [parse_name_and_expression(t.rest)[0] for t in tables] == ["FactSales", "DimCustomer"]
+
+    relationships = find_all(roots, "relationship")
+    assert len(relationships) == 1
+
+
+def test_multiline_fenced_expression_is_captured_as_one_string(sample_data_dir):
+    raw = _load_sample(sample_data_dir)
+    roots = parse_tmdl(raw)
+    fact_sales = find_all(roots, "table")[0]
+    measures = [c for c in fact_sales.children if c.keyword == "measure"]
+    region_summary = next(m for m in measures if parse_name_and_expression(m.rest)[0] == "Region Summary")
+    _, expr = parse_name_and_expression(region_summary.rest)
+    assert expr == '"Revenue by region: " & [Total Revenue]'
+
+
+def test_collect_properties_handles_flags_and_key_value():
+    raw = "createOrReplace\n\ttable T\n\t\tcolumn C\n\t\t\tdataType: string\n\t\t\tisHidden\n"
+    roots = parse_tmdl(raw)
+    table = find_all(roots, "table")[0]
+    column = find_all([table], "column")[0]
+    props = collect_properties(column.children)
+    assert props == {"dataType": "string", "isHidden": "true"}
+
+
+def test_split_table_column_handles_quoted_and_bare_names():
+    assert split_table_column("FactSales.CustomerKey") == ("FactSales", "CustomerKey")
+    assert split_table_column("'Metrics by Hour'.METRIC_DATE") == ("Metrics by Hour", "METRIC_DATE")
+
+
+def test_extract_semantic_model_from_tmdl_matches_json_adapter_shape(sample_data_dir):
+    raw = _load_sample(sample_data_dir)
+    model = extract_semantic_model_from_tmdl(raw, source_file="finance_model.tmdl", project_id="p1", model_name="Finance")
+
+    assert {t.name for t in model.tables} == {"FactSales", "DimCustomer"}
+    fact_sales = next(t for t in model.tables if t.name == "FactSales")
+    assert {c.name for c in fact_sales.columns} == {"CustomerKey", "Revenue", "Cost"}
+    assert len(fact_sales.measures) == 4
+    assert fact_sales.status == Status.CONFIRMED
+
+    total_revenue = next(m for m in fact_sales.measures if m.name == "Total Revenue")
+    assert total_revenue.expression == "SUM(FactSales[Revenue])"
+    assert total_revenue.provenance.source_type == "tmdl"
+    assert "FactSales" in total_revenue.provenance.json_path
+
+    gross_margin = next(m for m in fact_sales.measures if m.name == "Gross Margin")
+    assert gross_margin.expression == "[Total Revenue] - [Total Cost]"
+
+    assert len(model.relationships) == 1
+    rel = model.relationships[0]
+    assert rel.from_table == "FactSales"
+    assert rel.from_column == "CustomerKey"
+    assert rel.to_table == "DimCustomer"
+    assert rel.to_column == "CustomerKey"
+    assert rel.cardinality == "MANY_TO_ONE"
+    assert rel.status == Status.CONFIRMED
+
+
+def test_dependency_resolution_works_on_tmdl_extracted_model(sample_data_dir):
+    raw = _load_sample(sample_data_dir)
+    model = extract_semantic_model_from_tmdl(raw, source_file="finance_model.tmdl", project_id="p1", model_name="Finance")
+    gaps = resolve_dependencies(model)
+
+    fact_sales = next(t for t in model.tables if t.name == "FactSales")
+    gross_margin = next(m for m in fact_sales.measures if m.name == "Gross Margin")
+    assert set(gross_margin.referenced_measures) == {"Total Revenue", "Total Cost"}
+    assert gaps == []
+
+
+def test_relationship_cardinality_and_flags():
+    raw = (
+        "createOrReplace\n"
+        "\tmodel Model\n"
+        "\t\ttable A\n"
+        "\t\ttable B\n"
+        "\t\trelationship r1\n"
+        "\t\t\ttoCardinality: many\n"
+        "\t\t\tcrossFilteringBehavior: bothDirections\n"
+        "\t\t\tisActive: false\n"
+        "\t\t\tfromColumn: A.Key\n"
+        "\t\t\ttoColumn: B.Key\n"
+    )
+    model = extract_semantic_model_from_tmdl(raw, source_file="x.tmdl", project_id="p1", model_name="X")
+    rel = model.relationships[0]
+    assert rel.cardinality == "MANY_TO_MANY"
+    assert rel.cross_filter_direction == "BOTH"
+    assert rel.is_active is False
+
+
+def test_ingest_tmdl_file_end_to_end(db_session, sample_data_dir):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    client = TestClient(app)
+    project_id = client.post("/api/projects", json={"name": "TMDL Project"}).json()["id"]
+    path = os.path.join(sample_data_dir, "finance_model.tmdl")
+    with open(path, "rb") as f:
+        resp = client.post(
+            f"/api/projects/{project_id}/ingest",
+            files={"file": ("finance_model.tmdl", f, "application/octet-stream")},
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["detected_schema"] == "tmdl"
+    assert body["tables_extracted"] == 2
+    assert body["measures_extracted"] == 4
+
+    tables = client.get(f"/api/projects/{project_id}/powerbi/tables").json()
+    assert {t["name"] for t in tables} == {"FactSales", "DimCustomer"}
+
+    project = client.get(f"/api/projects/{project_id}").json()
+    assert project["source_artifacts"][0]["file_type"] == "tmdl"

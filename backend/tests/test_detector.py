@@ -40,8 +40,8 @@ def test_empty_string_raises():
         detect("")
 
 
-def test_tmdl_file_gives_a_specific_error_not_a_raw_parser_message():
+def test_tmdl_content_is_detected_not_rejected_as_invalid_json():
     tmdl = "createOrReplace\r\n\r\n\tmodel Model\r\n\t\tculture: en-US\r\n"
-    with pytest.raises(InvalidJSONError) as exc_info:
-        detect(tmdl)
-    assert "TMDL" in str(exc_info.value)
+    result = detect(tmdl)
+    assert result.schema == DetectedSchema.TMDL
+    assert result.payload["raw_text"] == tmdl

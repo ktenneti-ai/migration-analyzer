@@ -50,8 +50,10 @@ def resolve_dependencies(model: PowerBISemanticModel) -> list[MigrationGap]:
 
     measures_by_name: dict[str, PowerBIMeasure] = {}
     columns_by_table: dict[str, set[str]] = {}
+    measures_by_table: dict[str, set[str]] = {}
     for table in model.tables:
         columns_by_table[table.name] = {c.name for c in table.columns}
+        measures_by_table[table.name] = {m.name for m in table.measures}
         for measure in table.measures:
             measures_by_name[measure.name] = measure
 
@@ -94,6 +96,12 @@ def resolve_dependencies(model: PowerBISemanticModel) -> list[MigrationGap]:
                 if table_name in columns_by_table and column_name in columns_by_table[table_name]:
                     referenced_columns.append(f"{table_name}.{column_name}")
                     dependent_tables.add(table_name)
+                elif column_name in measures_by_table.get(table_name, set()) and column_name != measure.name:
+                    # DAX allows Table[MeasureName] to reference a measure hosted on
+                    # that table — not just a column. Without this branch, every
+                    # such reference (a common, valid pattern) is misreported as an
+                    # unresolved gap.
+                    referenced_measures.append(column_name)
                 else:
                     gaps.append(
                         MigrationGap(

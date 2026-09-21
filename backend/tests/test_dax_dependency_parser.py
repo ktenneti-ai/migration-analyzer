@@ -54,6 +54,33 @@ def test_resolve_dependencies_builds_chain_and_depth(sample_data_dir):
     assert all(g.status == "REQUIRES_INPUT" for g in gaps)
 
 
+def test_qualified_reference_to_a_measure_is_not_a_gap():
+    # Table[MeasureName] is valid DAX for referencing a measure hosted on
+    # that table, not just a column — a real pattern seen in production
+    # Power BI models (e.g. 'Volume'[ADM] where ADM is a measure).
+    payload = {
+        "model": {
+            "tables": [
+                {
+                    "name": "Volume",
+                    "columns": [{"name": "ADMIT_NUM", "dataType": "int64"}],
+                    "measures": [
+                        {"name": "ADM", "expression": "SUM(Volume[ADMIT_NUM])"},
+                        {"name": "ADM%", "expression": "CALCULATE(Volume[ADM]) / 100"},
+                    ],
+                }
+            ]
+        }
+    }
+    model = extract_semantic_model(payload, source_file="x.json", project_id="p1", model_name="X")
+    gaps = resolve_dependencies(model)
+    assert gaps == []
+
+    adm_pct = next(m for m in model.tables[0].measures if m.name == "ADM%")
+    assert adm_pct.referenced_measures == ["ADM"]
+    assert adm_pct.referenced_columns == []
+
+
 def test_circular_measure_reference_does_not_infinite_loop():
     from app.ingestion.json.powerbi_json_adapter import extract_semantic_model
 

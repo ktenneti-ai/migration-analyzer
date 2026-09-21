@@ -1,0 +1,70 @@
+createOrReplace
+
+	model Model
+		culture: en-US
+		defaultPowerBIDataSourceVersion: powerBI_V3
+
+		table FactSales
+			lineageTag: 11111111-1111-1111-1111-111111111111
+
+			column CustomerKey
+				dataType: int64
+				lineageTag: 22222222-2222-2222-2222-222222222222
+				summarizeBy: none
+				sourceColumn: CustomerKey
+
+			column Revenue
+				dataType: decimal
+				lineageTag: 33333333-3333-3333-3333-333333333333
+				summarizeBy: sum
+				sourceColumn: Revenue
+
+			column Cost
+				dataType: decimal
+				lineageTag: 44444444-4444-4444-4444-444444444444
+				summarizeBy: sum
+				sourceColumn: Cost
+
+			measure 'Total Revenue' = SUM(FactSales[Revenue])
+				formatString: $#,##0
+				lineageTag: 55555555-5555-5555-5555-555555555555
+
+			measure 'Total Cost' = SUM(FactSales[Cost])
+				formatString: $#,##0
+				lineageTag: 66666666-6666-6666-6666-666666666666
+
+			measure 'Gross Margin' = [Total Revenue] - [Total Cost]
+				formatString: $#,##0
+				lineageTag: 77777777-7777-7777-7777-777777777777
+
+			measure 'Region Summary' = ```
+					"Revenue by region: " & [Total Revenue]
+					```
+				lineageTag: 88888888-8888-8888-8888-888888888888
+
+			partition FactSales = m
+				mode: import
+				source =
+						let
+							Source = Sql.Database("server", "db")
+						in
+							Source
+
+		table DimCustomer
+			lineageTag: 99999999-9999-9999-9999-999999999999
+
+			column CustomerKey
+				dataType: int64
+				lineageTag: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+				summarizeBy: none
+				sourceColumn: CustomerKey
+
+			column CustomerName
+				dataType: string
+				lineageTag: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+				summarizeBy: none
+				sourceColumn: CustomerName
+
+		relationship cccccccc-cccc-cccc-cccc-cccccccccccc
+			fromColumn: FactSales.CustomerKey
+			toColumn: DimCustomer.CustomerKey
