@@ -173,3 +173,14 @@ def test_cli_end_to_end(tmp_path):
     for text in (report, json.dumps(results)):
         for secret in ("Total Sales", "GL Entries", "EDW_SALES", os.path.expanduser("~")):
             assert secret not in text
+
+
+def test_operator_risk_check_accepts_correct_rewrites():
+    from harness.worker import _operator_risks
+
+    assert _operator_risks('"a" & [x]', '"a" || MEASURE(`x`)') == []
+    assert _operator_risks("[a] || [b]", "MEASURE(`a`) OR MEASURE(`b`)") == []
+    assert _operator_risks('"a&b" & [x]', '"a&b" & MEASURE(`x`)') == [
+        "&: DAX string concatenation; in Databricks & is bitwise AND"]
+    assert _operator_risks("[a] || [b]", "MEASURE(`a`) || MEASURE(`b`)") == [
+        "||: DAX logical OR left in SQL, where || is string concatenation"]

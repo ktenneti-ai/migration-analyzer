@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import networkx as nx
 
-from app.ingestion.tmdl.tmdl_adapter import TERADATA_SOURCE_HINT_PREFIX, parse_teradata_source_hint
+from app.ingestion.tabular import TERADATA_SOURCE_HINT_PREFIX, parse_teradata_source_hint
 from app.metadata.models import LineageEdge, LineageNode, PowerBISemanticModel
 from app.metadata.store import new_id
 

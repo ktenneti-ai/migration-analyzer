@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import db_session
-from app.ingestion.tmdl.tmdl_adapter import TERADATA_SOURCE_HINT_PREFIX, parse_teradata_source_hint
+from app.ingestion.tabular import TERADATA_SOURCE_HINT_PREFIX, parse_teradata_source_hint
 from app.metadata import store
 
 router = APIRouter(prefix="/api/projects", tags=["teradata"])

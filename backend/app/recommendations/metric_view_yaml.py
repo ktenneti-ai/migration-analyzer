@@ -49,7 +49,8 @@ def _invalid_measure_reason(sql: str, original_dax: str) -> str | None:
         return "SELECTEDVALUE is a DAX visual-layer function with no metric view equivalent"
     if _STATIC_STR_RE.match(s):
         return "Static string literal — not a metric/aggregation"
-    if '"' in s and "&" in s and not re.search(r"\b(sum|count|avg|min|max|try_divide|MEASURE)\s*\(", s, re.I):
+    # The translator rewrites DAX's & concatenation to ||.
+    if '"' in s and "||" in s and not re.search(r"\b(sum|count|avg|min|max|try_divide|MEASURE)\s*\(", s, re.I):
         return "String concatenation expression — Power BI report title text, not a measure"
     return None
 

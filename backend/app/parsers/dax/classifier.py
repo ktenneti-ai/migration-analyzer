@@ -105,10 +105,24 @@ def split_args(s: str, open_paren_idx: int) -> tuple[list[str], int]:
     return args, i
 
 
-def _strip_strings_comments(dax: str) -> str:
-    dax = re.sub(r"//[^\n]*|--[^\n]*", " ", dax)
-    dax = re.sub(r"/\*.*?\*/", " ", dax, flags=re.S)
-    return re.sub(r'"(?:[^"]|"")*"', '""', dax)
+# One left-to-right pass, so whichever starts first wins: a "//" inside a
+# string literal isn't a comment, and a quote inside a comment isn't a
+# string. 'Quoted table names' are matched only so their contents are left
+# alone.
+_COMMENT_OR_LITERAL_RE = re.compile(r'"(?:[^"]|"")*"|\'(?:[^\']|\'\')*\'|//[^\n]*|--[^\n]*|/\*.*?\*/', re.S)
+
+
+def strip_comments_and_strings(dax: str, keep_strings: bool = False) -> str:
+    """Blanks out DAX comments, and string literals unless keep_strings
+    (a string is reduced to "" so the expression keeps its shape)."""
+
+    def repl(m: re.Match) -> str:
+        text = m.group(0)
+        if text.startswith("'") or (keep_strings and text.startswith('"')):
+            return text
+        return '""' if text.startswith('"') else " "
+
+    return _COMMENT_OR_LITERAL_RE.sub(repl, dax)
 
 
 def _calculate_filter_kinds(s: str) -> set[str]:
@@ -148,7 +162,7 @@ def analyze_expression(dax: str) -> dict:
     """Everything score_one() needs that isn't already on the canonical
     PowerBIMeasure (functions used, VAR usage, CALCULATE filter shapes,
     iterator-over-virtual-table, BLANK/0 sensitivity)."""
-    s = _strip_strings_comments(dax or "")
+    s = strip_comments_and_strings(dax or "")
     return {
         "functions": {f.upper() for f in _FUNC_RE.findall(s)},
         "uses_var": bool(re.search(r"\bVAR\b", s, re.I)),

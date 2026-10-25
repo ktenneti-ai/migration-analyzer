@@ -48,7 +48,7 @@ Any mix, searched recursively:
 | Fidelity | measure DAX dropped or altered; relationship M2M, bi-di and active flags |
 | Lineage | measure → measure and measure → column edges the graph misses; Teradata sources not captured |
 | Gaps | each "unresolved reference" gap is checked: real, or false (case mismatch, other-table column in row context, virtual column, text inside a comment or string) |
-| SQL | `auto` / `auto_spot_check` translations that don't parse as Databricks SQL, leftover DAX, or known DAX-vs-SQL semantic differences (`&`, `\|\|`, `INT`, `LOG`, `WEEKDAY`, `TRIM`, 2-arg `MIN`/`MAX`); Metric View YAML and wrapper-view SQL validity |
+| SQL | `auto` / `auto_spot_check` translations that don't parse as Databricks SQL, leftover DAX, or known DAX-vs-SQL semantic differences (`&`, `&&`, `\|\|` left untranslated, `INT`, `LOG`, `WEEKDAY`, `TRIM`, 2-arg `MIN`/`MAX`); Metric View YAML and wrapper-view SQL validity |
 | Coverage | model features the analyzer doesn't model at all (calculation groups, RLS/OLS, perspectives, incremental refresh, field parameters, ...), data-source mix, and DAX functions the classifier has no rule for |
 
 ## Reading the results

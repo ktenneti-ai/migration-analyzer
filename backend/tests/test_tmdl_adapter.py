@@ -8,7 +8,8 @@ from app.ingestion.tmdl.parser import (
     parse_tmdl,
     split_table_column,
 )
-from app.ingestion.tmdl.tmdl_adapter import extract_semantic_model_from_tmdl, parse_teradata_source_hint
+from app.ingestion.tabular import parse_teradata_source_hint
+from app.ingestion.tmdl.tmdl_adapter import extract_semantic_model_from_tmdl
 from app.metadata.models import Status
 from app.parsers.dax.dependency_parser import resolve_dependencies
 

@@ -72,3 +72,57 @@ def test_multiline_expressions_stored_as_line_lists_are_joined():
     assert table.measures[0].status == Status.CONFIRMED
     assert table.columns[1].expression == "IF(\n  Fact[Amt] > 0, 1, 0)"
     assert table.columns[1].is_calculated
+
+
+def test_bim_relationship_cardinality_and_cross_filter():
+    # model.bim writes fromCardinality/toCardinality and crossFilteringBehavior
+    # only when they differ from the many-to-one, one-direction default.
+    payload = {
+        "model": {
+            "tables": [{"name": "A"}, {"name": "B"}],
+            "relationships": [
+                {"fromTable": "A", "fromColumn": "k", "toTable": "B", "toColumn": "k"},
+                {"fromTable": "A", "fromColumn": "k", "toTable": "B", "toColumn": "k",
+                 "fromCardinality": "many", "toCardinality": "many", "crossFilteringBehavior": "bothDirections"},
+                {"fromTable": "A", "fromColumn": "k", "toTable": "B", "toColumn": "k", "fromCardinality": "one"},
+                {"fromTable": "A", "fromColumn": "k", "toTable": "B", "toColumn": "k",
+                 "cardinality": "MANY_TO_ONE", "crossFilteringBehavior": "BIDIRECTIONAL"},
+            ],
+        }
+    }
+    model = extract_semantic_model(payload, source_file="m.bim", project_id="p1", model_name="M")
+    assert [(r.cardinality, r.cross_filter_direction) for r in model.relationships] == [
+        ("MANY_TO_ONE", "SINGLE"),
+        ("MANY_TO_MANY", "BOTH"),
+        ("ONE_TO_ONE", "SINGLE"),
+        ("MANY_TO_ONE", "BOTH"),
+    ]
+
+
+def test_bim_teradata_source_is_read_from_partition_m_query():
+    payload = {
+        "model": {
+            "expressions": [
+                {"name": "Server", "kind": "m",
+                 "expression": '"tdprod" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]'},
+            ],
+            "tables": [
+                {
+                    "name": "GL",
+                    "partitions": [{"name": "GL", "source": {"type": "m", "expression": [
+                        "let",
+                        "    Source = Teradata.Database(Server, [HierarchicalNavigation=true]),",
+                        '    FIN = Source{[Schema="EDW_FIN"]}[Data],',
+                        '    V = FIN{[Name="V_GL_ENTRY"]}[Data]',
+                        "in",
+                        "    V",
+                    ]}}],
+                },
+                {"name": "Calc", "partitions": [{"name": "Calc", "source": {
+                    "type": "calculated", "expression": 'Teradata.Database("not a source")'}}]},
+            ],
+        }
+    }
+    model = extract_semantic_model(payload, source_file="m.bim", project_id="p1", model_name="M")
+    hints = {t.name: t.source_hint for t in model.tables}
+    assert hints == {"GL": "Teradata: tdprod.EDW_FIN.V_GL_ENTRY", "Calc": None}
