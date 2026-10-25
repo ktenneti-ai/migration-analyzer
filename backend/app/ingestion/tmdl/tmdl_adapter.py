@@ -67,7 +67,12 @@ def _is_auto_date_table(table_node) -> bool:
 # the lineage graph builder) parse it back apart with the same prefix,
 # rather than each re-declaring their own copy of the literal.
 TERADATA_SOURCE_HINT_PREFIX = "Teradata: "
-_TERADATA_DATABASE_RE = re.compile(r'Teradata\.Database\(\s*"([^"]+)"')
+# The first argument is a string literal or — common in real models, so the
+# server can differ per environment — an M parameter, bare or as #"Name".
+_TERADATA_DATABASE_RE = re.compile(r'Teradata\.Database\(\s*(?:"([^"]+)"|#"([^"]+)"|([A-Za-z_]\w*))')
+# A parameter is a shared expression like:
+#     expression ServerName = "tdprod" meta [IsParameterQuery=true, ...]
+_M_PARAMETER_RE = re.compile(r'^"([^"]*)"\s+meta\s*\[[^\]]*IsParameterQuery\s*=\s*true', re.I)
 _M_SCHEMA_RE = re.compile(r'Schema\s*=\s*"([^"]+)"')
 _M_TABLE_NAME_RE = re.compile(r'Name\s*=\s*"([^"]+)"')
 
@@ -84,6 +89,9 @@ def parse_teradata_source_hint(source_hint: str) -> dict:
     _extract_teradata_source_hint) back into its parts, plus an object_type
     classification (VIEW/BASE_TABLE/None) from the "V_" naming convention."""
     parts = source_hint[len(TERADATA_SOURCE_HINT_PREFIX) :].split(".")
+    if len(parts) > 3:
+        # A host name like "tdprod.example.com" contains dots of its own.
+        parts = [".".join(parts[:-2])] + parts[-2:]
     database = parts[0] if len(parts) > 0 else None
     schema = parts[1] if len(parts) > 1 else None
     obj = parts[2] if len(parts) > 2 else None
@@ -93,17 +101,27 @@ def parse_teradata_source_hint(source_hint: str) -> dict:
     return {"database": database, "schema": schema, "object": obj, "object_type": object_type}
 
 
-def _extract_teradata_source_hint(table_node) -> str | None:
+def _m_parameters(roots) -> dict[str, str]:
+    """Name -> literal value of every M parameter in the model."""
+    params: dict[str, str] = {}
+    for node in find_all(roots, "expression"):
+        name, expr = parse_name_and_expression(node.rest)
+        m = _M_PARAMETER_RE.match(expr or "")
+        if m:
+            params[name] = m.group(1)
+    return params
+
+
+def _extract_teradata_source_hint(table_node, parameters: dict[str, str]) -> str | None:
     for partition_node in table_node.children:
         if partition_node.keyword.lower() != "partition":
             continue
         source_node = next((c for c in partition_node.children if c.keyword.lower() == "source"), None)
         if source_node is None:
             continue
-        # The M query lands either entirely in source_node.rest (when TMDL
-        # fences it with ```) or spread across source_node's children (when
-        # it isn't fenced, so the generic tokenizer split each M step into
-        # its own node) — checking both covers either export shape.
+        # The tokenizer folds the M query into source_node.rest whether or
+        # not it's fenced with ```; children are also checked for a body
+        # indented shallower than TMDL's rules allow.
         blob = " ".join(
             [source_node.rest] + [f"{c.keyword} {c.rest}" for c in source_node.children]
         )
@@ -112,11 +130,10 @@ def _extract_teradata_source_hint(table_node) -> str | None:
             continue
         schema_match = _M_SCHEMA_RE.search(blob)
         name_match = _M_TABLE_NAME_RE.search(blob)
-        parts = [
-            m.group(1)
-            for m in (db_match, schema_match, name_match)
-            if m is not None
-        ]
+        literal, quoted_param, bare_param = db_match.groups()
+        param = quoted_param or bare_param
+        database = literal or parameters.get(param, param)
+        parts = [database] + [m.group(1) for m in (schema_match, name_match) if m is not None]
         return TERADATA_SOURCE_HINT_PREFIX + ".".join(parts)
     return None
 
@@ -126,6 +143,7 @@ def extract_semantic_model_from_tmdl(
 ) -> PowerBISemanticModel:
     roots = parse_tmdl(raw_text)
     model_id = new_id()
+    parameters = _m_parameters(roots)
 
     def prov(locator: str) -> Provenance:
         return Provenance(source_file=source_file, source_type="tmdl", json_path=locator)
@@ -182,7 +200,7 @@ def extract_semantic_model_from_tmdl(
                 model_id=model_id,
                 name=name,
                 table_type="REGULAR",
-                source_hint=_extract_teradata_source_hint(table_node),
+                source_hint=_extract_teradata_source_hint(table_node, parameters),
                 columns=columns,
                 measures=measures,
                 status=Status.CONFIRMED,

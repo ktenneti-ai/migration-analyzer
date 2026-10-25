@@ -48,3 +48,27 @@ def test_missing_relationship_fields_flagged_requires_input():
         payload, source_file="x.json", project_id="p1", model_name="X"
     )
     assert model.relationships[0].status == Status.REQUIRES_INPUT
+
+
+def test_multiline_expressions_stored_as_line_lists_are_joined():
+    # model.bim writes any multi-line expression as a list of lines.
+    payload = {
+        "model": {
+            "tables": [
+                {
+                    "name": "Fact",
+                    "columns": [
+                        {"name": "Amt", "dataType": "decimal"},
+                        {"name": "Flag", "type": "calculated", "expression": ["IF(", "  Fact[Amt] > 0, 1, 0)"]},
+                    ],
+                    "measures": [{"name": "YTD", "expression": ["", "VAR x = SUM(Fact[Amt])", "RETURN x"]}],
+                }
+            ]
+        }
+    }
+    model = extract_semantic_model(payload, source_file="m.bim", project_id="p1", model_name="M")
+    table = model.tables[0]
+    assert table.measures[0].expression == "\nVAR x = SUM(Fact[Amt])\nRETURN x"
+    assert table.measures[0].status == Status.CONFIRMED
+    assert table.columns[1].expression == "IF(\n  Fact[Amt] > 0, 1, 0)"
+    assert table.columns[1].is_calculated

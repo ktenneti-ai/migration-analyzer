@@ -48,16 +48,25 @@ def resolve_dependencies(model: PowerBISemanticModel) -> list[MigrationGap]:
     in place and returns gaps for anything that doesn't resolve."""
     gaps: list[MigrationGap] = []
 
+    # DAX resolves names case-insensitively ([total sales] is [Total Sales]),
+    # so every lookup is keyed by lowercased name and maps back to the
+    # canonical spelling recorded in the model.
     measures_by_name: dict[str, PowerBIMeasure] = {}
-    columns_by_table: dict[str, set[str]] = {}
-    measures_by_table: dict[str, set[str]] = {}
+    measure_names: dict[str, str] = {}
+    table_names: dict[str, str] = {}
+    columns_by_table: dict[str, dict[str, str]] = {}
+    measures_by_table: dict[str, dict[str, str]] = {}
     for table in model.tables:
-        columns_by_table[table.name] = {c.name for c in table.columns}
-        measures_by_table[table.name] = {m.name for m in table.measures}
+        key = table.name.lower()
+        table_names[key] = table.name
+        columns_by_table[key] = {c.name.lower(): c.name for c in table.columns}
+        measures_by_table[key] = {m.name.lower(): m.name for m in table.measures}
         for measure in table.measures:
             measures_by_name[measure.name] = measure
+            measure_names[measure.name.lower()] = measure.name
 
     for table in model.tables:
+        own_columns = columns_by_table[table.name.lower()]
         for measure in table.measures:
             refs = extract_references(measure.expression)
             referenced_measures: list[str] = []
@@ -65,10 +74,11 @@ def resolve_dependencies(model: PowerBISemanticModel) -> list[MigrationGap]:
             dependent_tables: set[str] = set()
 
             for name in refs.bare_names:
-                if name in measures_by_name and name != measure.name:
-                    referenced_measures.append(name)
-                elif name in columns_by_table.get(table.name, set()):
-                    referenced_columns.append(f"{table.name}.{name}")
+                canonical_measure = measure_names.get(name.lower())
+                if canonical_measure is not None and canonical_measure != measure.name:
+                    referenced_measures.append(canonical_measure)
+                elif name.lower() in own_columns:
+                    referenced_columns.append(f"{table.name}.{own_columns[name.lower()]}")
                     dependent_tables.add(table.name)
                 else:
                     gaps.append(
@@ -93,15 +103,20 @@ def resolve_dependencies(model: PowerBISemanticModel) -> list[MigrationGap]:
                     )
 
             for table_name, column_name in refs.qualified:
-                if table_name in columns_by_table and column_name in columns_by_table[table_name]:
-                    referenced_columns.append(f"{table_name}.{column_name}")
-                    dependent_tables.add(table_name)
-                elif column_name in measures_by_table.get(table_name, set()) and column_name != measure.name:
+                table_key, column_key = table_name.lower(), column_name.lower()
+                canonical_table = table_names.get(table_key)
+                if canonical_table is not None and column_key in columns_by_table[table_key]:
+                    referenced_columns.append(f"{canonical_table}.{columns_by_table[table_key][column_key]}")
+                    dependent_tables.add(canonical_table)
+                elif (
+                    column_key in measures_by_table.get(table_key, {})
+                    and measures_by_table[table_key][column_key] != measure.name
+                ):
                     # DAX allows Table[MeasureName] to reference a measure hosted on
                     # that table — not just a column. Without this branch, every
                     # such reference (a common, valid pattern) is misreported as an
                     # unresolved gap.
-                    referenced_measures.append(column_name)
+                    referenced_measures.append(measures_by_table[table_key][column_key])
                 else:
                     gaps.append(
                         MigrationGap(

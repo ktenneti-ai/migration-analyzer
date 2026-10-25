@@ -107,3 +107,31 @@ def test_circular_measure_reference_does_not_infinite_loop():
     # Cycle guard means depth computation terminates rather than recursing forever.
     assert isinstance(a.dependency_depth, int)
     assert isinstance(b.dependency_depth, int)
+
+
+def test_references_resolve_case_insensitively_to_canonical_names():
+    # DAX names are case-insensitive: [total revenue] is [Total Revenue].
+    payload = {
+        "model": {
+            "tables": [
+                {
+                    "name": "FactSales",
+                    "columns": [{"name": "Revenue"}],
+                    "measures": [
+                        {"name": "Total Revenue", "expression": "SUM(factsales[REVENUE])"},
+                        {"name": "Doubled", "expression": "[total revenue] * 2 + FACTSALES[total revenue]"},
+                        {"name": "Bare Column", "expression": "SUMX(FactSales, [revenue])"},
+                    ],
+                }
+            ]
+        }
+    }
+    model = extract_semantic_model(payload, source_file="m.json", project_id="p1", model_name="M")
+    gaps = resolve_dependencies(model)
+    assert gaps == []
+    measures = {m.name: m for m in model.tables[0].measures}
+    assert measures["Total Revenue"].referenced_columns == ["FactSales.Revenue"]
+    assert measures["Total Revenue"].dependent_tables == ["FactSales"]
+    assert measures["Doubled"].referenced_measures == ["Total Revenue"]
+    assert measures["Doubled"].dependency_depth == 1
+    assert measures["Bare Column"].referenced_columns == ["FactSales.Revenue"]
