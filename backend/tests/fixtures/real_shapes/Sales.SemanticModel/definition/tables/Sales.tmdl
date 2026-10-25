@@ -1,0 +1,83 @@
+/// Order lines from the EDW
+table Sales
+	lineageTag: 1a000000-0000-4000-8000-000000000001
+
+	/// Net revenue after discounts
+	measure 'Total Sales' = SUM(Sales[Net Amount])
+		formatString: $#,0.00;($#,0.00);$#,0.00
+		lineageTag: 1a000000-0000-4000-8000-000000000002
+
+	measure 'Sales Margin %' =
+			VAR _sales = [Total Sales]
+			VAR _cost = SUMX(Sales, Sales[Quantity] * RELATED(Customer[Standard Cost]))
+			RETURN
+				DIVIDE(_sales - _cost, _sales)
+		formatString: 0.0%
+		lineageTag: 1a000000-0000-4000-8000-000000000003
+
+	measure 'Customer''s Order Count' = DISTINCTCOUNT(Sales[Order Number])
+		lineageTag: 1a000000-0000-4000-8000-000000000004
+
+	measure 'Sales (Case)' = [total sales] * 1
+		lineageTag: 1a000000-0000-4000-8000-000000000005
+
+	measure 'Avg Price' =
+			// was: [Old Avg Price]
+			AVERAGEX(Customer, [Standard Cost])
+		lineageTag: 1a000000-0000-4000-8000-000000000006
+
+	column 'Order Number'
+		dataType: string
+		lineageTag: 1a000000-0000-4000-8000-000000000010
+		summarizeBy: none
+		sourceColumn: ORDER_NBR
+
+	column CustomerKey
+		dataType: int64
+		isHidden
+		lineageTag: 1a000000-0000-4000-8000-000000000011
+		summarizeBy: none
+		sourceColumn: CUST_KEY
+
+	column 'Order Date'
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 1a000000-0000-4000-8000-000000000012
+		summarizeBy: none
+		sourceColumn: ORDER_DT
+
+	column 'Ship Date'
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 1a000000-0000-4000-8000-000000000013
+		summarizeBy: none
+		sourceColumn: SHIP_DT
+
+	column Quantity
+		dataType: int64
+		lineageTag: 1a000000-0000-4000-8000-000000000014
+		summarizeBy: sum
+		sourceColumn: QTY
+
+	column 'Net Amount'
+		dataType: decimal
+		lineageTag: 1a000000-0000-4000-8000-000000000015
+		summarizeBy: sum
+		sourceColumn: NET_AMT
+
+	column 'Line Total' = Sales[Quantity] * Sales[Net Amount]
+		dataType: decimal
+		lineageTag: 1a000000-0000-4000-8000-000000000016
+		summarizeBy: sum
+
+	partition Sales = m
+		mode: import
+		source =
+				let
+				    Source = Teradata.Database(ServerName, [HierarchicalNavigation=true]),
+				    EDW = Source{[Schema="EDW_SALES"]}[Data],
+				    V_ORDER_LINE = EDW{[Name="V_ORDER_LINE"]}[Data]
+				in
+				    V_ORDER_LINE
+
+	annotation PBI_ResultType = Table

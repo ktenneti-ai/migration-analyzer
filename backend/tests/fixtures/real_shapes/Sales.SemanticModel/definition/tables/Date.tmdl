@@ -1,0 +1,20 @@
+table Date
+	lineageTag: 3c000000-0000-4000-8000-000000000001
+	dataCategory: Time
+
+	column Date
+		dataType: dateTime
+		isKey
+		formatString: Long Date
+		lineageTag: 3c000000-0000-4000-8000-000000000002
+		summarizeBy: none
+		sourceColumn: [Date]
+
+	column Year = YEAR('Date'[Date])
+		dataType: int64
+		lineageTag: 3c000000-0000-4000-8000-000000000003
+		summarizeBy: none
+
+	partition Date = calculated
+		mode: import
+		source = CALENDAR(DATE(2020, 1, 1), DATE(2026, 12, 31))
