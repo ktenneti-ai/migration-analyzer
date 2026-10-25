@@ -13,8 +13,17 @@ from dataclasses import dataclass, field
 
 from app.metadata.models import MigrationGap, PowerBIMeasure, PowerBISemanticModel, Status
 from app.metadata.store import new_id
+from app.parsers.dax.classifier import strip_comments_and_strings
 
 _QUALIFIED_REF = re.compile(r"(?:'([^']+)'|(\w+))\[([^\]]+)\]")
+# Functions whose first argument is the table they iterate: inside them a
+# bare [Column] refers to that table's column (row context), not to the
+# measure's home table.
+_ROW_CONTEXT_TABLE_RE = re.compile(
+    r"\b(?:SUMX|AVERAGEX|MINX|MAXX|COUNTX|COUNTAX|PRODUCTX|CONCATENATEX|RANKX|FILTER|ADDCOLUMNS|"
+    r"SELECTCOLUMNS|GENERATE|GENERATEALL)\s*\(\s*(?:'((?:[^']|'')+)'|(\w+))",
+    re.I,
+)
 
 
 @dataclass
@@ -24,6 +33,9 @@ class ParsedReferences:
 
 
 def extract_references(expression: str) -> ParsedReferences:
+    # Brackets inside a comment ("// was [Old Measure]") or a string literal
+    # aren't references.
+    expression = strip_comments_and_strings(expression)
     result = ParsedReferences()
     matched_spans: list[tuple[int, int]] = []
 
@@ -56,11 +68,14 @@ def resolve_dependencies(model: PowerBISemanticModel) -> list[MigrationGap]:
     table_names: dict[str, str] = {}
     columns_by_table: dict[str, dict[str, str]] = {}
     measures_by_table: dict[str, dict[str, str]] = {}
+    column_owners: dict[str, list[str]] = {}  # column name -> tables that have it
     for table in model.tables:
         key = table.name.lower()
         table_names[key] = table.name
         columns_by_table[key] = {c.name.lower(): c.name for c in table.columns}
         measures_by_table[key] = {m.name.lower(): m.name for m in table.measures}
+        for column in table.columns:
+            column_owners.setdefault(column.name.lower(), []).append(table.name)
         for measure in table.measures:
             measures_by_name[measure.name] = measure
             measure_names[measure.name.lower()] = measure.name
@@ -73,21 +88,40 @@ def resolve_dependencies(model: PowerBISemanticModel) -> list[MigrationGap]:
             referenced_columns: list[str] = []
             dependent_tables: set[str] = set()
 
+            row_context_tables = {
+                (m.group(1) or "").replace("''", "'").lower() or m.group(2).lower()
+                for m in _ROW_CONTEXT_TABLE_RE.finditer(strip_comments_and_strings(measure.expression))
+            }
             for name in refs.bare_names:
                 canonical_measure = measure_names.get(name.lower())
+                owner = _row_context_owner(column_owners.get(name.lower(), []), row_context_tables)
                 if canonical_measure is not None and canonical_measure != measure.name:
                     referenced_measures.append(canonical_measure)
                 elif name.lower() in own_columns:
                     referenced_columns.append(f"{table.name}.{own_columns[name.lower()]}")
                     dependent_tables.add(table.name)
+                elif owner is not None:
+                    # A bare [Column] from another table, e.g.
+                    # AVERAGEX(Customer, [Standard Cost]): valid in the
+                    # iterator's row context.
+                    owner_key = owner.lower()
+                    referenced_columns.append(f"{owner}.{columns_by_table[owner_key][name.lower()]}")
+                    dependent_tables.add(owner)
                 else:
+                    ambiguous = len(column_owners.get(name.lower(), [])) > 1
                     gaps.append(
                         MigrationGap(
                             id=new_id(),
                             object_ref=f"Measure:{measure.name}",
                             missing_information=(
                                 f"Reference '[{name}]' in measure '{measure.name}' does not "
-                                "match any known measure or column in its own table."
+                                + (
+                                    "identify a single column: it exists in more than one table "
+                                    f"({', '.join(sorted(column_owners[name.lower()]))}) and none is "
+                                    "the table the expression iterates over."
+                                    if ambiguous
+                                    else "match any known measure or column."
+                                )
                             ),
                             why_it_matters=(
                                 "Unresolved references break dependency graph accuracy and "
@@ -145,6 +179,16 @@ def resolve_dependencies(model: PowerBISemanticModel) -> list[MigrationGap]:
 
     _compute_depths(measures_by_name)
     return gaps
+
+
+def _row_context_owner(owners: list[str], row_context_tables: set[str]) -> str | None:
+    """The table a bare [Column] belongs to when it isn't on the measure's
+    own table: the only table that has it, or else the one the expression
+    iterates over. None when that can't be decided."""
+    if len(owners) == 1:
+        return owners[0]
+    iterated = [t for t in owners if t.lower() in row_context_tables]
+    return iterated[0] if len(iterated) == 1 else None
 
 
 def _compute_depths(measures_by_name: dict[str, PowerBIMeasure]) -> None:

@@ -16,8 +16,12 @@ neither has a home in the canonical model yet.
 """
 from __future__ import annotations
 
-import re
-
+from app.ingestion.tabular import (
+    cross_filter_direction,
+    m_parameter_value,
+    relationship_cardinality,
+    teradata_source_hint,
+)
 from app.ingestion.tmdl.parser import (
     collect_properties,
     find_all,
@@ -56,59 +60,14 @@ def _is_auto_date_table(table_node) -> bool:
     return False
 
 
-# A table imported from Teradata typically has a partition whose M query
-# looks like:
-#     Source = Teradata.Database("BNRPROD", [HierarchicalNavigation=true]),
-#     CP_ED = Source{[Schema="CP_ED"]}[Data],
-#     V_X = CP_ED{[Name="V_CPED_X"]}[Data]
-# Regex over the M text (consistent with this codebase's DAX handling — no
-# full M parser) rather than trying to interpret the M language generally.
-# Exported so downstream readers of source_hint (the teradata.py API routes,
-# the lineage graph builder) parse it back apart with the same prefix,
-# rather than each re-declaring their own copy of the literal.
-TERADATA_SOURCE_HINT_PREFIX = "Teradata: "
-# The first argument is a string literal or — common in real models, so the
-# server can differ per environment — an M parameter, bare or as #"Name".
-_TERADATA_DATABASE_RE = re.compile(r'Teradata\.Database\(\s*(?:"([^"]+)"|#"([^"]+)"|([A-Za-z_]\w*))')
-# A parameter is a shared expression like:
-#     expression ServerName = "tdprod" meta [IsParameterQuery=true, ...]
-_M_PARAMETER_RE = re.compile(r'^"([^"]*)"\s+meta\s*\[[^\]]*IsParameterQuery\s*=\s*true', re.I)
-_M_SCHEMA_RE = re.compile(r'Schema\s*=\s*"([^"]+)"')
-_M_TABLE_NAME_RE = re.compile(r'Name\s*=\s*"([^"]+)"')
-
-# Confirmed naming convention (not an app-invented inference): this
-# Teradata environment prefixes every view with "V_" — a base table has no
-# such prefix. Exported so every reader of a parsed Teradata object name
-# (teradata.py's API routes, compute_dashboard, the lineage graph builder)
-# classifies it the same way instead of re-deriving the rule.
-_TERADATA_VIEW_PREFIX = "V_"
-
-
-def parse_teradata_source_hint(source_hint: str) -> dict:
-    """Splits a "Teradata: DATABASE.SCHEMA.OBJECT" hint (as produced by
-    _extract_teradata_source_hint) back into its parts, plus an object_type
-    classification (VIEW/BASE_TABLE/None) from the "V_" naming convention."""
-    parts = source_hint[len(TERADATA_SOURCE_HINT_PREFIX) :].split(".")
-    if len(parts) > 3:
-        # A host name like "tdprod.example.com" contains dots of its own.
-        parts = [".".join(parts[:-2])] + parts[-2:]
-    database = parts[0] if len(parts) > 0 else None
-    schema = parts[1] if len(parts) > 1 else None
-    obj = parts[2] if len(parts) > 2 else None
-    object_type = None
-    if obj:
-        object_type = "VIEW" if obj.upper().startswith(_TERADATA_VIEW_PREFIX) else "BASE_TABLE"
-    return {"database": database, "schema": schema, "object": obj, "object_type": object_type}
-
-
 def _m_parameters(roots) -> dict[str, str]:
     """Name -> literal value of every M parameter in the model."""
     params: dict[str, str] = {}
     for node in find_all(roots, "expression"):
         name, expr = parse_name_and_expression(node.rest)
-        m = _M_PARAMETER_RE.match(expr or "")
-        if m:
-            params[name] = m.group(1)
+        value = m_parameter_value(expr)
+        if value is not None:
+            params[name] = value
     return params
 
 
@@ -125,16 +84,9 @@ def _extract_teradata_source_hint(table_node, parameters: dict[str, str]) -> str
         blob = " ".join(
             [source_node.rest] + [f"{c.keyword} {c.rest}" for c in source_node.children]
         )
-        db_match = _TERADATA_DATABASE_RE.search(blob)
-        if not db_match:
-            continue
-        schema_match = _M_SCHEMA_RE.search(blob)
-        name_match = _M_TABLE_NAME_RE.search(blob)
-        literal, quoted_param, bare_param = db_match.groups()
-        param = quoted_param or bare_param
-        database = literal or parameters.get(param, param)
-        parts = [database] + [m.group(1) for m in (schema_match, name_match) if m is not None]
-        return TERADATA_SOURCE_HINT_PREFIX + ".".join(parts)
+        hint = teradata_source_hint(blob, parameters)
+        if hint is not None:
+            return hint
     return None
 
 
@@ -214,11 +166,11 @@ def extract_semantic_model_from_tmdl(
         from_table, from_column = split_table_column(props.get("fromColumn", ""))
         to_table, to_column = split_table_column(props.get("toColumn", ""))
 
-        # TMDL only writes toCardinality/crossFilteringBehavior/isActive when
-        # they differ from the (many-to-one, single-direction, active)
-        # default — their absence is itself the confirmed value, not a gap.
-        cardinality = "MANY_TO_MANY" if props.get("toCardinality") == "many" else "MANY_TO_ONE"
-        cross_filter = "BOTH" if "both" in props.get("crossFilteringBehavior", "").lower() else "SINGLE"
+        # TMDL only writes from/toCardinality, crossFilteringBehavior and
+        # isActive when they differ from the (many-to-one, single-direction,
+        # active) default — their absence is itself the confirmed value.
+        cardinality = relationship_cardinality(props.get("fromCardinality"), props.get("toCardinality"))
+        cross_filter = cross_filter_direction(props.get("crossFilteringBehavior"))
         is_active = props.get("isActive", "true").lower() != "false"
 
         relationships.append(

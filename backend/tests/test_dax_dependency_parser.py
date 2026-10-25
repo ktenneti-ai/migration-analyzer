@@ -135,3 +135,61 @@ def test_references_resolve_case_insensitively_to_canonical_names():
     assert measures["Doubled"].referenced_measures == ["Total Revenue"]
     assert measures["Doubled"].dependency_depth == 1
     assert measures["Bare Column"].referenced_columns == ["FactSales.Revenue"]
+
+
+def _two_table_model(measures):
+    payload = {
+        "model": {
+            "tables": [
+                {"name": "Sales", "columns": [{"name": "Qty"}, {"name": "Key"}], "measures": measures},
+                {"name": "Customer", "columns": [{"name": "Standard Cost"}, {"name": "Key"}]},
+                {"name": "Product", "columns": [{"name": "Key"}, {"name": "List Price"}]},
+            ]
+        }
+    }
+    return extract_semantic_model(payload, source_file="m.json", project_id="p1", model_name="M")
+
+
+def test_references_in_comments_and_strings_are_ignored():
+    refs = extract_references('// was: [Old Measure]\nSUM(Sales[Qty]) /* [Block] */ & "[Not A Ref]" -- [Trailing]')
+    assert refs.bare_names == []
+    assert refs.qualified == [("Sales", "Qty")]
+    refs = extract_references('"see http://x/[Not A Ref]" & [Real]')
+    assert refs.bare_names == ["Real"]
+
+
+def test_bare_column_from_another_table_resolves_in_row_context():
+    model = _two_table_model([
+        {"name": "Avg Cost", "expression": "AVERAGEX(Customer, [Standard Cost])"},
+        # [Key] is on Sales itself, so the home table wins.
+        {"name": "Own Key", "expression": "MAXX(Customer, [Key])"},
+        {"name": "Price", "expression": "SUMX('Product', [List Price])"},
+    ])
+    gaps = resolve_dependencies(model)
+    assert gaps == []
+    measures = {m.name: m for m in model.tables[0].measures}
+    assert measures["Avg Cost"].referenced_columns == ["Customer.Standard Cost"]
+    assert measures["Avg Cost"].dependent_tables == ["Customer"]
+    assert measures["Own Key"].referenced_columns == ["Sales.Key"]
+    assert measures["Price"].referenced_columns == ["Product.List Price"]
+
+
+def test_ambiguous_bare_column_uses_iterated_table_or_reports_why():
+    payload = {
+        "model": {
+            "tables": [
+                {"name": "Fact", "columns": [{"name": "Qty"}], "measures": [
+                    {"name": "Iterated", "expression": "SUMX(Product, [Price])"},
+                    {"name": "Unclear", "expression": "[Price] * 2"},
+                ]},
+                {"name": "Customer", "columns": [{"name": "Price"}]},
+                {"name": "Product", "columns": [{"name": "Price"}]},
+            ]
+        }
+    }
+    model = extract_semantic_model(payload, source_file="m.json", project_id="p1", model_name="M")
+    gaps = resolve_dependencies(model)
+    measures = {m.name: m for m in model.tables[0].measures}
+    assert measures["Iterated"].referenced_columns == ["Product.Price"]
+    assert len(gaps) == 1
+    assert "exists in more than one table (Customer, Product)" in gaps[0].missing_information

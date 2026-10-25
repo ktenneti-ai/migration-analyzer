@@ -107,3 +107,18 @@ def test_case_mismatched_references_translate_to_canonical_names():
     assert result["Doubled"]["status"] == "auto"
     assert result["Doubled"]["translated_sql"] == "MEASURE(`Total`) * 2"
     assert result["Cost Sum"]["translated_sql"].endswith("fact.cost)")
+
+
+def test_dax_comments_are_dropped_from_translated_sql():
+    result = _translate([("Total", "// legacy: [Old Total]\nSUM(Fact[Value]) /* net */")])
+    assert result["Total"]["status"] == "auto"
+    assert result["Total"]["translated_sql"] == "sum(fact.value)"
+
+
+def test_dax_operators_are_rewritten_for_databricks():
+    result = _translate([
+        ("Label", '"Total: " & SUM(Fact[Value]) & "&&"'),
+        ("Both", "IF(SUM(Fact[Value]) > 0 && SUM(Fact[Cost]) > 0 || SUM(Fact[Value]) < 0, 1, 0)"),
+    ])
+    assert result["Label"]["translated_sql"] == '"Total: " || sum(fact.value) || "&&"'
+    assert "sum(fact.value) > 0 AND sum(fact.cost) > 0 OR sum(fact.value) < 0" in result["Both"]["translated_sql"]

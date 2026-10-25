@@ -374,9 +374,24 @@ _SEMANTIC_RISKS = [
                                        "single-argument log() is natural log"),
     (re.compile(r"\bweekday\s*\(", re.I), "WEEKDAY: DAX defaults to 1=Sunday; Databricks weekday() is 0=Monday"),
     (re.compile(r"\btrim\s*\(", re.I), "TRIM: DAX also collapses internal runs of spaces; Databricks trim() doesn't"),
-    (re.compile(r"&&|\|\|"), "&& / ||: DAX logical operators; in Databricks || is string concatenation"),
-    (re.compile(r"(?<![&])&(?![&])"), "&: DAX string concatenation; in Databricks & is bitwise AND"),
 ]
+_STRING_LITERALS_RE = re.compile(r'"(?:[^"]|"")*"')
+
+
+def _operator_risks(dax: str, sql: str) -> list[str]:
+    """DAX & / && / || carried into SQL unchanged. Compared outside string
+    literals: & concatenates in DAX but is bitwise AND in Databricks, and
+    DAX's logical || is string concatenation in Databricks."""
+    dax_code, sql_code = _STRING_LITERALS_RE.sub('""', dax), _STRING_LITERALS_RE.sub('""', sql)
+    risks = []
+    if "&&" in sql_code:
+        risks.append("&&: DAX logical AND left in SQL")
+    if re.search(r"(?<!&)&(?!&)", sql_code):
+        risks.append("&: DAX string concatenation; in Databricks & is bitwise AND")
+    dax_concats = len(re.findall(r"(?<!&)&(?!&)", dax_code))
+    if dax_code.count("||") and sql_code.count("||") > dax_concats:
+        risks.append("||: DAX logical OR left in SQL, where || is string concatenation")
+    return risks
 
 
 def _two_arg_min_max(dax: str) -> bool:
@@ -445,6 +460,8 @@ def _run_downstream(model, data, graph_json, f: _Findings, metrics: Counter, res
         for rx, why in _SEMANTIC_RISKS:
             if rx.search(it.translated_sql):
                 problems.append(("semantic_risk", why))
+        for why in _operator_risks(it.original_dax, it.translated_sql):
+            problems.append(("semantic_risk", why))
         if _two_arg_min_max(it.original_dax):
             problems.append(("semantic_risk", "two-argument MIN/MAX is scalar in DAX; needs least()/greatest()"))
         if problems:

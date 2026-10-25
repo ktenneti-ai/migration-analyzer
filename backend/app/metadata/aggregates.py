@@ -2,7 +2,7 @@
 assessment report so the two never drift apart."""
 from __future__ import annotations
 
-from app.ingestion.tmdl.tmdl_adapter import TERADATA_SOURCE_HINT_PREFIX, parse_teradata_source_hint
+from app.ingestion.tabular import TERADATA_SOURCE_HINT_PREFIX, parse_teradata_source_hint
 from app.metadata.models import ProjectData
 from app.parsers.dax.classifier import complexity_bucket
 

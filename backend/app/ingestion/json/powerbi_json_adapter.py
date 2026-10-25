@@ -10,6 +10,12 @@ trace any value back to its source (spec section 32, Provenance).
 """
 from __future__ import annotations
 
+from app.ingestion.tabular import (
+    cross_filter_direction,
+    m_parameter_value,
+    relationship_cardinality,
+    teradata_source_hint,
+)
 from app.metadata.models import (
     PowerBIColumn,
     PowerBIMeasure,
@@ -31,6 +37,32 @@ def _expression_text(value) -> str | None:
     return value
 
 
+def _m_parameters(model_json: dict) -> dict[str, str]:
+    """Name -> literal value of every M parameter (model.expressions)."""
+    params: dict[str, str] = {}
+    for expr_json in model_json.get("expressions", []) or []:
+        value = m_parameter_value(_expression_text(expr_json.get("expression")))
+        if value is not None and expr_json.get("name"):
+            params[expr_json["name"]] = value
+    return params
+
+
+def _source_hint(table_json: dict, parameters: dict[str, str]) -> str | None:
+    """An explicit `source` hint if the export has one, else the Teradata
+    object named in a partition's M query (how a real model.bim records
+    where a table's data comes from)."""
+    if table_json.get("source"):
+        return table_json["source"]
+    for partition in table_json.get("partitions", []) or []:
+        source = partition.get("source") or {}
+        if source.get("type", "m") != "m":
+            continue
+        hint = teradata_source_hint(_expression_text(source.get("expression")) or "", parameters)
+        if hint is not None:
+            return hint
+    return None
+
+
 def extract_semantic_model(
     payload: dict, *, source_file: str, project_id: str, model_name: str
 ) -> PowerBISemanticModel:
@@ -42,6 +74,7 @@ def extract_semantic_model(
 
     tables: list[PowerBITable] = []
     table_id_by_name: dict[str, str] = {}
+    parameters = _m_parameters(model_json)
 
     for i, table_json in enumerate(model_json.get("tables", [])):
         table_path = f"$.model.tables[{i}]"
@@ -91,7 +124,7 @@ def extract_semantic_model(
                 model_id=model_id,
                 name=name,
                 table_type=table_json.get("tableType", "REGULAR"),
-                source_hint=table_json.get("source"),
+                source_hint=_source_hint(table_json, parameters),
                 columns=columns,
                 measures=measures,
                 status=Status.CONFIRMED,
@@ -110,8 +143,13 @@ def extract_semantic_model(
                 from_column=rel_json.get("fromColumn", ""),
                 to_table=rel_json.get("toTable", ""),
                 to_column=rel_json.get("toColumn", ""),
-                cardinality=rel_json.get("cardinality", "REQUIRES_INPUT"),
-                cross_filter_direction=rel_json.get("crossFilteringBehavior", "REQUIRES_INPUT"),
+                # A real model.bim records cardinality as fromCardinality /
+                # toCardinality, written only when not the many-to-one
+                # default; a simplified export may carry a single
+                # `cardinality` value instead, which is kept as given.
+                cardinality=rel_json.get("cardinality")
+                or relationship_cardinality(rel_json.get("fromCardinality"), rel_json.get("toCardinality")),
+                cross_filter_direction=cross_filter_direction(rel_json.get("crossFilteringBehavior")),
                 is_active=bool(rel_json.get("isActive", True)),
                 status=Status.CONFIRMED
                 if rel_json.get("fromTable") and rel_json.get("toTable")

@@ -27,7 +27,7 @@ from __future__ import annotations
 import re
 
 from app.metadata.models import PowerBIMeasure, PowerBISemanticModel, SqlTranslationItem
-from app.parsers.dax.classifier import analyze_expression, split_args, topo_order
+from app.parsers.dax.classifier import analyze_expression, split_args, strip_comments_and_strings, topo_order
 
 # Mechanical, schema-independent substitutions only — functions whose
 # Databricks equivalent needs semantic completion (INT, EOMONTH, CONVERT,
@@ -93,6 +93,24 @@ def _rewrite_divide(s: str) -> str:
         s = s[: m.start()] + repl + s[end + 1 :]
 
 
+# DAX operators whose Databricks spelling differs: & concatenates strings in
+# DAX but is bitwise AND in Databricks; && and || are DAX's logical AND/OR,
+# and || is string concatenation in Databricks. One pass, so a rewritten &
+# isn't then re-read as a logical ||.
+_OPERATOR_RE = re.compile(r"\s*(&&|\|\||&)\s*")
+_OPERATOR_SQL = {"&&": " AND ", "||": " OR ", "&": " || "}
+_STRING_LITERAL_RE = re.compile(r'("(?:[^"]|"")*")')
+
+
+def _rewrite_operators(s: str) -> str:
+    parts = _STRING_LITERAL_RE.split(s)
+    # split() with a capture group puts string literals at the odd indexes.
+    return "".join(
+        part if i % 2 else _OPERATOR_RE.sub(lambda m: _OPERATOR_SQL[m.group(1)], part)
+        for i, part in enumerate(parts)
+    )
+
+
 def _apply_direct_map(s: str) -> str:
     for pattern, replacement in _DIRECT_MAP:
         s = re.sub(pattern, replacement, s, flags=re.I)
@@ -112,17 +130,17 @@ def _resolve_bare_refs(
     s: str, measure: PowerBIMeasure, home_table: str, statuses: dict[str, str], notes: list[str]
 ) -> tuple[str, bool]:
     """Replaces bare [Name] refs with MEASURE(`Name`) (if that dependency
-    translated cleanly) or `home_table_col`.column (if it's a same-table
-    column, per dependency_parser's bare-name resolution). Returns
-    (new_sql, had_unresolved_reference)."""
+    translated cleanly) or table.column (the column dependency_parser
+    resolved it to: the home table's, else the row-context table's).
+    Returns (new_sql, had_unresolved_reference)."""
     had_unresolved = False
     # Keyed by lowercased name: DAX references are case-insensitive, and
-    # dependency_parser records the canonical spelling.
+    # dependency_parser records the canonical spelling. Home-table columns
+    # are added last so they win, matching dependency_parser's precedence.
     bare_columns = {
         col.lower(): f"{snake(table)}.{snake(col)}"
-        for rc in measure.referenced_columns
+        for rc in sorted(measure.referenced_columns, key=lambda rc: rc.partition(".")[0] == home_table)
         for table, _, col in [rc.partition(".")]
-        if table == home_table
     }
     referenced_measures = {name.lower(): name for name in measure.referenced_measures}
 
@@ -149,7 +167,11 @@ def _resolve_bare_refs(
 
 
 def _t1(dax: str) -> str:
-    s = _rewrite_divide(dax)
+    # DAX `//` comments aren't valid SQL, and a reference mentioned in one
+    # isn't a dependency to resolve.
+    s = strip_comments_and_strings(dax, keep_strings=True)
+    s = _rewrite_divide(s)
+    s = _rewrite_operators(s)
     s = _apply_direct_map(s)
     s = _normalize_column_refs(s)
     return s.strip()
