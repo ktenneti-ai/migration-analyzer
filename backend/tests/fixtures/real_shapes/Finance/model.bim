@@ -1,0 +1,91 @@
+{
+  "name": "Finance",
+  "compatibilityLevel": 1567,
+  "model": {
+    "culture": "en-US",
+    "dataAccessOptions": { "legacyRedirects": true, "returnErrorValuesAsNull": true },
+    "defaultPowerBIDataSourceVersion": "powerBI_V3",
+    "tables": [
+      {
+        "name": "GL Entries",
+        "lineageTag": "a1",
+        "columns": [
+          { "name": "Account Key", "dataType": "int64", "sourceColumn": "ACCT_KEY", "summarizeBy": "none" },
+          { "name": "Cost Center Key", "dataType": "int64", "sourceColumn": "CC_KEY", "summarizeBy": "none" },
+          { "name": "Posting Date", "dataType": "dateTime", "sourceColumn": "POST_DT" },
+          { "name": "Amount", "dataType": "decimal", "sourceColumn": "AMT" },
+          { "type": "calculated", "name": "Is Debit", "dataType": "boolean", "expression": "'GL Entries'[Amount] > 0" }
+        ],
+        "partitions": [
+          {
+            "name": "GL Entries",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": [
+                "let",
+                "    Source = Teradata.Database(\"TDPROD\", [HierarchicalNavigation=true]),",
+                "    FIN = Source{[Schema=\"EDW_FIN\"]}[Data],",
+                "    V_GL = FIN{[Name=\"V_GL_ENTRY\"]}[Data]",
+                "in",
+                "    V_GL"
+              ]
+            }
+          }
+        ],
+        "measures": [
+          { "name": "Total Amount", "expression": "SUM('GL Entries'[Amount])", "formatString": "#,0" },
+          {
+            "name": "Amount YTD",
+            "expression": [
+              "",
+              "VAR _ytd = TOTALYTD([Total Amount], 'GL Entries'[Posting Date])",
+              "RETURN _ytd"
+            ]
+          },
+          {
+            "name": "Debit Share",
+            "expression": "DIVIDE(CALCULATE([Total Amount], 'GL Entries'[Is Debit] = TRUE()), [Total Amount])",
+            "formatStringDefinition": { "expression": "IF([Total Amount] > 1000000, \"#,0,,M\", \"#,0\")" }
+          },
+          { "name": "Rounded Amount", "expression": "INT([Total Amount])" },
+          { "name": "Bigger", "expression": "MAX([Total Amount], 0)" }
+        ]
+      },
+      {
+        "name": "Account",
+        "columns": [
+          { "name": "Account Key", "dataType": "int64", "sourceColumn": "ACCT_KEY" },
+          { "name": "Account Name", "dataType": "string", "sourceColumn": "ACCT_NM" }
+        ],
+        "partitions": [
+          { "name": "Account", "mode": "directQuery",
+            "source": { "type": "m", "expression": "let\n    Source = Sql.Database(\"sqlprod\", \"finance\"),\n    T = Source{[Schema=\"dbo\",Item=\"Account\"]}[Data]\nin\n    T" } }
+        ],
+        "hierarchies": [ { "name": "Accounts", "levels": [ { "name": "Account Name", "column": "Account Name" } ] } ]
+      },
+      {
+        "name": "Cost Center Bridge",
+        "columns": [
+          { "name": "Cost Center Key", "dataType": "int64", "sourceColumn": "CC_KEY" },
+          { "name": "Region", "dataType": "string", "sourceColumn": "REGION" }
+        ],
+        "partitions": [
+          { "name": "Cost Center Bridge", "source": { "type": "calculated", "expression": "DATATABLE(\"Cost Center Key\", INTEGER, \"Region\", STRING, {{1, \"East\"}})" } }
+        ]
+      }
+    ],
+    "relationships": [
+      { "name": "r1", "fromTable": "GL Entries", "fromColumn": "Account Key", "toTable": "Account", "toColumn": "Account Key" },
+      { "name": "r2", "fromTable": "GL Entries", "fromColumn": "Cost Center Key", "toTable": "Cost Center Bridge", "toColumn": "Cost Center Key",
+        "fromCardinality": "many", "toCardinality": "many", "crossFilteringBehavior": "bothDirections" }
+    ],
+    "roles": [
+      { "name": "Regional", "modelPermission": "read",
+        "tablePermissions": [ { "name": "Cost Center Bridge", "filterExpression": "[Region] = USERPRINCIPALNAME()" } ] }
+    ],
+    "perspectives": [ { "name": "Executive", "tables": [ { "name": "GL Entries" } ] } ],
+    "cultures": [ { "name": "en-US" }, { "name": "fr-FR" } ],
+    "annotations": [ { "name": "PBI_QueryOrder", "value": "[\"GL Entries\",\"Account\"]" } ]
+  }
+}

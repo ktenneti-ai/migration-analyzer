@@ -1,0 +1,24 @@
+table 'Time Intelligence'
+	lineageTag: 4d000000-0000-4000-8000-000000000001
+
+	calculationGroup
+		precedence: 1
+
+		calculationItem Current = SELECTEDMEASURE()
+
+		calculationItem YTD =
+				CALCULATE(SELECTEDMEASURE(), DATESYTD('Date'[Date]))
+
+	column Period
+		dataType: string
+		lineageTag: 4d000000-0000-4000-8000-000000000002
+		summarizeBy: none
+		sourceColumn: Name
+		sortByColumn: Ordinal
+
+	column Ordinal
+		dataType: int64
+		isHidden
+		lineageTag: 4d000000-0000-4000-8000-000000000003
+		summarizeBy: sum
+		sourceColumn: Ordinal

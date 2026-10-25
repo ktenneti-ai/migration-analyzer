@@ -153,6 +153,20 @@ cd backend && source .venv/bin/activate && pytest      # backend tests
 cd frontend && npm test                                 # frontend tests (vitest)
 ```
 
+## Testing against real models
+
+The test suites only cover the bundled samples. To measure accuracy on real
+Power BI models (PBIP folders, `model.bim`, `.pbit`), put them in
+`real_models/` (gitignored) and run:
+
+```bash
+cd backend && source .venv/bin/activate && python -m harness
+```
+
+It checks the analyzer's output against an independent parse of each model
+and writes an accuracy report to `harness_reports/`. See
+[`backend/harness/README.md`](backend/harness/README.md).
+
 ## Sample data
 
 - `sample_data/finance_model.json` — a Power BI semantic model (JSON) with

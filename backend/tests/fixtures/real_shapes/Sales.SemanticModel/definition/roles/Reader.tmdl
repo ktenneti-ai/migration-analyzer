@@ -1,0 +1,4 @@
+role Reader
+	modelPermission: read
+
+	tablePermission Customer = [Customer Name] <> "Internal"

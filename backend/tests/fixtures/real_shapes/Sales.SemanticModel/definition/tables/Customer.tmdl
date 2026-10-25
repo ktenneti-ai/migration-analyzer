@@ -1,0 +1,38 @@
+table Customer
+	lineageTag: 2b000000-0000-4000-8000-000000000001
+
+	column CustomerKey
+		dataType: int64
+		isKey
+		lineageTag: 2b000000-0000-4000-8000-000000000002
+		summarizeBy: none
+		sourceColumn: CUST_KEY
+
+	column 'Customer Name'
+		dataType: string
+		lineageTag: 2b000000-0000-4000-8000-000000000003
+		summarizeBy: none
+		sourceColumn: CUST_NM
+
+	column 'Standard Cost'
+		dataType: decimal
+		lineageTag: 2b000000-0000-4000-8000-000000000004
+		summarizeBy: sum
+		sourceColumn: STD_COST
+
+	hierarchy Geography
+		lineageTag: 2b000000-0000-4000-8000-000000000005
+
+		level 'Customer Name'
+			lineageTag: 2b000000-0000-4000-8000-000000000006
+			column: 'Customer Name'
+
+	partition Customer = m
+		mode: import
+		source =
+				let
+				    Source = Teradata.Database("TDPROD", [HierarchicalNavigation=true]),
+				    EDW = Source{[Schema="EDW_REF"]}[Data],
+				    CUSTOMER = EDW{[Name="CUSTOMER"]}[Data]
+				in
+				    CUSTOMER

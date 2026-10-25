@@ -16,3 +16,7 @@ frontend/.vite/
 # Editor / OS
 .DS_Store
 .vscode/
+
+# Real-model harness: customer models and their reports never get committed
+real_models/
+harness_reports/
