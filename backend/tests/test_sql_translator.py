@@ -100,3 +100,10 @@ def test_unresolved_measure_reference_downgrades_to_needs_review():
     c = result["C"]
     assert c["status"] == "needs_review"
     assert any("unresolved measure ref" in n for n in c["notes"])
+
+
+def test_case_mismatched_references_translate_to_canonical_names():
+    result = _translate([("Total", "SUM(Fact[Value])"), ("Doubled", "[total] * 2"), ("Cost Sum", "SUMX(Fact, [cost])")])
+    assert result["Doubled"]["status"] == "auto"
+    assert result["Doubled"]["translated_sql"] == "MEASURE(`Total`) * 2"
+    assert result["Cost Sum"]["translated_sql"].endswith("fact.cost)")

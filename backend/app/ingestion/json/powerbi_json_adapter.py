@@ -22,6 +22,15 @@ from app.metadata.models import (
 from app.metadata.store import new_id
 
 
+def _expression_text(value) -> str | None:
+    """Real model.bim / TMSL exports store any multi-line expression as a
+    list of lines (Tabular Editor and SSMS both write it that way); a
+    single-line one is a plain string."""
+    if isinstance(value, list):
+        return "\n".join(str(line) for line in value)
+    return value
+
+
 def extract_semantic_model(
     payload: dict, *, source_file: str, project_id: str, model_name: str
 ) -> PowerBISemanticModel:
@@ -53,7 +62,7 @@ def extract_semantic_model(
                     name=col_name,
                     data_type=col_json.get("dataType"),
                     is_calculated="expression" in col_json,
-                    expression=col_json.get("expression"),
+                    expression=_expression_text(col_json.get("expression")),
                     hidden=bool(col_json.get("isHidden", False)),
                     status=Status.CONFIRMED,
                     provenance=prov(col_path),
@@ -64,7 +73,7 @@ def extract_semantic_model(
         for k, measure_json in enumerate(table_json.get("measures", [])):
             measure_path = f"{table_path}.measures[{k}]"
             measure_name = measure_json.get("name") or f"UnnamedMeasure{k}"
-            expression = measure_json.get("expression", "")
+            expression = _expression_text(measure_json.get("expression")) or ""
             measures.append(
                 PowerBIMeasure(
                     id=new_id(),

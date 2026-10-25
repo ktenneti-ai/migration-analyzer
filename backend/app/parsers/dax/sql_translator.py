@@ -116,17 +116,21 @@ def _resolve_bare_refs(
     column, per dependency_parser's bare-name resolution). Returns
     (new_sql, had_unresolved_reference)."""
     had_unresolved = False
+    # Keyed by lowercased name: DAX references are case-insensitive, and
+    # dependency_parser records the canonical spelling.
     bare_columns = {
-        col: f"{snake(table)}.{snake(col)}"
+        col.lower(): f"{snake(table)}.{snake(col)}"
         for rc in measure.referenced_columns
         for table, _, col in [rc.partition(".")]
         if table == home_table
     }
+    referenced_measures = {name.lower(): name for name in measure.referenced_measures}
 
     def repl(m: re.Match) -> str:
         nonlocal had_unresolved
         name = m.group(1)
-        if name in measure.referenced_measures:
+        if name.lower() in referenced_measures:
+            name = referenced_measures[name.lower()]
             dep_status = statuses.get(name)
             if dep_status in _TRANSLATABLE_STATUSES:
                 return f"MEASURE(`{name}`)"
@@ -135,8 +139,8 @@ def _resolve_bare_refs(
                 f"unresolved measure ref [{name}] (dependency status: {dep_status or 'unclassified'}) — resolve manually"
             )
             return m.group(0)
-        if name in bare_columns:
-            return bare_columns[name]
+        if name.lower() in bare_columns:
+            return bare_columns[name.lower()]
         had_unresolved = True
         notes.append(f"unresolved reference [{name}] — could not be validated against known measures/columns")
         return m.group(0)

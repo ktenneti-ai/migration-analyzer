@@ -8,7 +8,7 @@ from app.ingestion.tmdl.parser import (
     parse_tmdl,
     split_table_column,
 )
-from app.ingestion.tmdl.tmdl_adapter import extract_semantic_model_from_tmdl
+from app.ingestion.tmdl.tmdl_adapter import extract_semantic_model_from_tmdl, parse_teradata_source_hint
 from app.metadata.models import Status
 from app.parsers.dax.dependency_parser import resolve_dependencies
 
@@ -282,3 +282,75 @@ def test_ingest_tmdl_file_end_to_end(db_session, sample_data_dir):
 
     project = client.get(f"/api/projects/{project_id}").json()
     assert project["source_artifacts"][0]["file_type"] == "tmdl"
+
+
+def test_unfenced_multiline_expressions_are_captured():
+    # How Power BI Desktop's PBIP export writes multi-line DAX: no ``` fence,
+    # body indented two levels below the measure, below its own properties.
+    raw = (
+        "table Sales\n"
+        "\tmeasure 'Margin %' =\n"
+        "\t\t\tVAR _s = [Total]\n"
+        "\n"
+        "\t\t\tRETURN\n"
+        "\t\t\t\tDIVIDE(_s - 1, _s)\n"
+        "\t\tformatString: 0.0%\n"
+        "\t\tlineageTag: abc\n"
+        "\tmeasure Total = SUM(Sales[Amt])\n"
+        "\tcolumn Amt\n"
+        "\t\tdataType: decimal\n"
+        "\t\tformatString: 0.0=\n"
+    )
+    model = extract_semantic_model_from_tmdl(raw, source_file="x.tmdl", project_id="p1", model_name="X")
+    sales = model.tables[0]
+    margin = next(m for m in sales.measures if m.name == "Margin %")
+    assert margin.expression == "VAR _s = [Total]\n\nRETURN\nDIVIDE(_s - 1, _s)"
+    assert margin.status == Status.CONFIRMED
+    assert [m.name for m in sales.measures] == ["Margin %", "Total"]
+    assert [c.name for c in sales.columns] == ["Amt"]
+
+
+def test_quoted_names_with_escaped_quotes():
+    assert parse_name_and_expression("'Customer''s Count' = COUNTROWS(T)") == (
+        "Customer's Count",
+        "COUNTROWS(T)",
+    )
+    assert parse_name_and_expression("'Plain'") == ("Plain", None)
+
+
+def test_split_table_column_handles_quoted_column_names():
+    assert split_table_column("Sales.'Order Date'") == ("Sales", "Order Date")
+    assert split_table_column("'Bob''s Table'.'Ship Date'") == ("Bob's Table", "Ship Date")
+    assert split_table_column("'Fact Sales'.Amt") == ("Fact Sales", "Amt")
+
+
+def test_teradata_server_given_as_m_parameter_is_resolved():
+    raw = (
+        'expression ServerName = "tdprod.example.com" meta [IsParameterQuery=true, Type="Text"]\n'
+        "\tlineageTag: p1\n"
+        "\n"
+        "table Orders\n"
+        "\tpartition Orders = m\n"
+        "\t\tmode: import\n"
+        "\t\tsource =\n"
+        "\t\t\t\tlet\n"
+        "\t\t\t\t    Source = Teradata.Database(ServerName, [HierarchicalNavigation=true]),\n"
+        '\t\t\t\t    EDW = Source{[Schema="EDW_SALES"]}[Data],\n'
+        '\t\t\t\t    V = EDW{[Name="V_ORDER"]}[Data]\n'
+        "\t\t\t\tin\n"
+        "\t\t\t\t    V\n"
+        "table Returns\n"
+        "\tpartition Returns = m\n"
+        "\t\tsource =\n"
+        '\t\t\t\tlet Source = Teradata.Database(#"Undefined Param"), S = Source{[Schema="X"]}[Data], '
+        'T = S{[Name="RET"]}[Data] in T\n'
+    )
+    model = extract_semantic_model_from_tmdl(raw, source_file="x.tmdl", project_id="p1", model_name="X")
+    hints = {t.name: t.source_hint for t in model.tables}
+    assert hints == {
+        "Orders": "Teradata: tdprod.example.com.EDW_SALES.V_ORDER",
+        "Returns": "Teradata: Undefined Param.X.RET",
+    }
+    parsed = parse_teradata_source_hint(hints["Orders"])
+    assert parsed == {"database": "tdprod.example.com", "schema": "EDW_SALES", "object": "V_ORDER",
+                      "object_type": "VIEW"}

@@ -1,10 +1,18 @@
 """Generic TMDL (Tabular Model Definition Language) tokenizer.
 
 TMDL nests purely by indentation (one tab per level) and has one
-non-obvious wrinkle: a multi-line expression is delimited by a line ending
-in ` ``` ` and a following line that is just ` ``` ` — everything between is
-literal text, not further indentation-parsed. Comments (`//`) and blank
-lines are otherwise ignored.
+non-obvious wrinkle: multi-line expressions. A header ending in `=` is
+followed by the expression's lines, which are literal text, not further
+indentation-parsed. They are written one of two ways:
+
+- fenced: the header ends in `= ```` and the body runs to a line that is
+  just ` ``` `
+- unfenced (what Power BI Desktop's PBIP export writes): the body is
+  simply indented deeper — two levels below a named object's header
+  (`measure 'X' =`), so it sits below the object's own properties, or one
+  level below a nameless property (`source =`)
+
+Comments (`//`) and blank lines are otherwise ignored.
 
 This module only tokenizes structure (keyword + rest-of-line + children per
 indentation) — it has no idea what a "table" or "measure" means. That
@@ -17,6 +25,7 @@ import re
 from dataclasses import dataclass, field
 
 _FENCE_OPEN_RE = re.compile(r"=\s*```\s*$")
+_OPEN_EXPRESSION_RE = re.compile(r"=\s*$")
 
 
 @dataclass
@@ -64,6 +73,15 @@ def parse_tmdl(text: str) -> list[TmdlNode]:
                 if pos < n:
                     pos += 1  # consume the closing fence
                 rest = _FENCE_OPEN_RE.sub("= " + "\n".join(body_lines), rest)
+            elif not keyword.endswith(":") and _OPEN_EXPRESSION_RE.search(rest):
+                body_min = indent + (1 if rest.strip() == "=" else 2)
+                body_lines = []
+                while pos < n and (not lines[pos].strip() or _indent_of(lines[pos]) >= body_min):
+                    body_lines.append(lines[pos].strip())
+                    pos += 1
+                while body_lines and not body_lines[-1]:
+                    body_lines.pop()
+                rest = _OPEN_EXPRESSION_RE.sub("= " + "\n".join(body_lines), rest)
 
             node = TmdlNode(indent=indent, keyword=keyword, rest=rest, line_no=line_no)
             node.children = parse_block(indent + 1)
@@ -85,7 +103,13 @@ def find_all(nodes: list[TmdlNode], keyword: str) -> list[TmdlNode]:
     return found
 
 
-_NAME_EXPR_RE = re.compile(r"^(?:'([^']+)'|([^\s=]+))(?:\s*=\s*(.*))?$", re.S)
+# A quoted name escapes a literal quote by doubling it: 'Customer''s Name'.
+_QUOTED_NAME = r"'((?:[^']|'')+)'"
+_NAME_EXPR_RE = re.compile(rf"^(?:{_QUOTED_NAME}|([^\s=]+))(?:\s*=\s*(.*))?$", re.S)
+
+
+def _unescape(quoted_body: str) -> str:
+    return quoted_body.replace("''", "'")
 
 
 def parse_name_and_expression(rest: str) -> tuple[str, str | None]:
@@ -94,7 +118,7 @@ def parse_name_and_expression(rest: str) -> tuple[str, str | None]:
     m = _NAME_EXPR_RE.match(rest.strip())
     if not m:
         return rest.strip(), None
-    name = m.group(1) or m.group(2)
+    name = _unescape(m.group(1)) if m.group(1) is not None else m.group(2)
     expr = m.group(3)
     return name, (expr.strip() if expr is not None else None)
 
@@ -113,18 +137,19 @@ def collect_properties(children: list[TmdlNode]) -> dict[str, str]:
     return props
 
 
+_TABLE_COLUMN_RE = re.compile(rf"^(?:{_QUOTED_NAME}|([^'.]+))\.(?:{_QUOTED_NAME}|(.+))$")
+
+
 def split_table_column(value: str) -> tuple[str, str]:
-    """`fromColumn`/`toColumn` values look like `Table.Column` or
-    `'Table Name'.Column`."""
+    """`fromColumn`/`toColumn` values look like `Table.Column`, and either
+    part is quoted when it contains spaces or punctuation:
+    `'Table Name'.Column`, `Table.'Column Name'`, `'Bob''s'.'Order Date'`."""
     value = value.strip()
-    if value.startswith("'"):
-        end = value.find("'", 1)
-        if end == -1:
-            return value, ""
-        table = value[1:end]
-        column = value[end + 1 :].lstrip(".")
-        return table, column
-    if "." in value:
-        table, column = value.split(".", 1)
-        return table, column
-    return value, ""
+    m = _TABLE_COLUMN_RE.match(value)
+    if not m:
+        if value.startswith("'") and value.endswith("'") and len(value) > 1:
+            return _unescape(value[1:-1]), ""
+        return value, ""
+    table = _unescape(m.group(1)) if m.group(1) is not None else m.group(2)
+    column = _unescape(m.group(3)) if m.group(3) is not None else m.group(4)
+    return table, column
